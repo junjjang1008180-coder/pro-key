@@ -94,3 +94,30 @@
 4. 누름 판정 + 디바운스, 앱 안 입력창에서 테스트
 5. 키보드 확장 + App Group 이벤트 채널
 6. 다른 앱에서 전체 흐름 테스트, 특수키, 안정화
+
+## 12. 진행 기록
+
+### 0단계: 개발 환경 확인 (2026-10-03)
+| 항목 | 결과 |
+|---|---|
+| macOS | 27.0.1 (26A434) |
+| Xcode / SDK | Xcode 27.0 (27A266a), iOS SDK 27.0 |
+| 칩 | Apple 실리콘 (arm64) |
+| iPad | M4 11인치 (Pro/Air 여부 미확인), iPadOS 26.6.2 |
+| Apple 계정 | 무료 계정 (Personal Team) |
+| 실기기 연결 | 미확인 (케이블 없음) |
+
+결정:
+- Deployment target은 **iPadOS 26.0**. iOS 27 SDK 전용 API는 `#available`로 감싼다.
+- 무료 계정이므로 앱은 7일마다 재설치 필요. App Group 사용 가능 여부는 1단계에서 실험.
+
+### 1단계: 가능성 실험
+실험 앱: `Experiments/FeasibilityLab/` (메인 앱 + 키보드 확장). 실기기 결과는 아직 없음.
+
+| 실험 | 결과 | 비고 |
+|---|---|---|
+| 1. 멀티태스킹 카메라 (`isMultitaskingCameraAccessSupported`, Split View / Slide Over / Stage Manager에서 프레임 유지) | 미확인 | |
+| 2. 무료 계정으로 App Group 추가 + 앱 ↔ 키보드 파일 공유 | 미확인 | |
+| 3. 거치 상태에서 종이 전체와 손이 함께 보이는지 | 미확인 | |
+
+모드 결정: 미정 (실험 후 사용자와 결정)
