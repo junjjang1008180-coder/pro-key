@@ -7,6 +7,8 @@ final class KeyboardViewController: UIInputViewController {
     private let globeButton = UIButton(type: .system)
     private var pollTimer: Timer?
     private var appMessage: String?
+    /// 마지막 버튼 결과. 1초 폴링이 화면을 다시 그려도 사라지지 않게 따로 보관한다.
+    private var lastActionResult: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -48,6 +50,8 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         refreshStatus()
         // 실험용: 키보드가 보이는 동안 1초마다 앱이 쓴 글을 다시 읽는다.
+        // viewWillAppear가 두 번 불려도 타이머가 겹치지 않도록 먼저 정리한다.
+        pollTimer?.invalidate()
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.refreshStatus()
         }
@@ -64,7 +68,7 @@ final class KeyboardViewController: UIInputViewController {
         globeButton.isHidden = !needsInputModeSwitchKey
     }
 
-    private func refreshStatus(extra: String? = nil) {
+    private func refreshStatus() {
         var lines = [
             hasFullAccess
                 ? "Full Access: ✅ 켜짐"
@@ -79,7 +83,7 @@ final class KeyboardViewController: UIInputViewController {
             appMessage = nil
             lines.append("앱이 쓴 글 읽기 실패: \(error.localizedDescription)")
         }
-        if let extra { lines.append(extra) }
+        if let lastActionResult { lines.append(lastActionResult) }
         statusLabel.text = lines.joined(separator: "\n")
     }
 
@@ -93,20 +97,26 @@ final class KeyboardViewController: UIInputViewController {
 
     @objc private func insertAppMessage() {
         guard let appMessage else {
-            refreshStatus(extra: "넣을 글이 없음 (앱에서 먼저 'App Group에 쓰기')")
+            report("넣을 글이 없음 (앱에서 먼저 'App Group에 쓰기')")
             return
         }
         textDocumentProxy.insertText(appMessage)
+        report("✅ 앱 글 넣기 실행")
     }
 
     @objc private func writeToApp() {
         let text = "키보드가 씀 \(LabShared.timestamp()), Full Access=\(hasFullAccess)"
         do {
             try LabShared.write(text, to: LabShared.keyboardMessageFile)
-            refreshStatus(extra: "✅ 키보드→앱 쓰기 성공")
+            report("✅ 키보드→앱 쓰기 성공")
         } catch {
-            refreshStatus(extra: "❌ 키보드→앱 쓰기 실패: \(error.localizedDescription)")
+            report("❌ 키보드→앱 쓰기 실패: \(error.localizedDescription)")
         }
+    }
+
+    private func report(_ result: String) {
+        lastActionResult = "[\(LabShared.timestamp())] \(result)"
+        refreshStatus()
     }
 
     @objc private func insertSpace() {

@@ -37,6 +37,14 @@ final class PreviewView: UIView {
         }
     }
 
+    /// 창 크기가 바뀔 때(화면 나누기 등)나 카메라 연결이 늦게 생겼을 때도 방향을 다시 맞춘다.
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        if let rotationCoordinator {
+            applyRotation(rotationCoordinator.videoRotationAngleForHorizonLevelPreview)
+        }
+    }
+
     private func applyRotation(_ angle: CGFloat) {
         guard let connection = previewLayer.connection, connection.isVideoRotationAngleSupported(angle) else { return }
         connection.videoRotationAngle = angle

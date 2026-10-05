@@ -95,6 +95,8 @@ final class CameraLab: NSObject, ObservableObject {
 
     func addLog(_ message: String) {
         log.insert("[\(LabShared.timestamp())] \(message)", at: 0)
+        // 창 크기를 계속 바꾸면 기록이 끝없이 쌓이므로 최근 것만 남긴다.
+        if log.count > 200 { log.removeLast(log.count - 200) }
     }
 
     private func configureAndRun() {
@@ -123,12 +125,21 @@ final class CameraLab: NSObject, ObservableObject {
                 DispatchQueue.main.async { self.addLog("카메라 입력 생성 실패: \(error.localizedDescription)") }
                 return
             }
-            if self.session.canAddInput(input) { self.session.addInput(input) }
+            guard self.session.canAddInput(input) else {
+                self.session.commitConfiguration()
+                DispatchQueue.main.async { self.addLog("❌ 카메라 입력을 세션에 추가할 수 없음: \(device.localizedName)") }
+                return
+            }
+            self.session.addInput(input)
 
             if !self.session.outputs.contains(self.videoOutput) {
                 self.videoOutput.alwaysDiscardsLateVideoFrames = true
                 self.videoOutput.setSampleBufferDelegate(self, queue: self.videoQueue)
-                if self.session.canAddOutput(self.videoOutput) { self.session.addOutput(self.videoOutput) }
+                if self.session.canAddOutput(self.videoOutput) {
+                    self.session.addOutput(self.videoOutput)
+                } else {
+                    DispatchQueue.main.async { self.addLog("❌ 프레임 출력을 세션에 추가할 수 없음 (프레임 수가 0으로 보임)") }
+                }
             }
 
             let supported = self.session.isMultitaskingCameraAccessSupported
@@ -192,11 +203,9 @@ final class CameraLab: NSObject, ObservableObject {
     // MARK: - 세션 알림
 
     @objc private func sessionInterrupted(_ notification: Notification) {
-        var reasonText = "알 수 없음"
-        if let raw = notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int,
-           let reason = AVCaptureSession.InterruptionReason(rawValue: raw) {
-            reasonText = Self.describe(reason)
-        }
+        let reasonText = (notification.userInfo?[AVCaptureSessionInterruptionReasonKey] as? Int)
+            .flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
+            .map(Self.describe) ?? "알 수 없음"
         DispatchQueue.main.async { self.addLog("⚠️ 카메라 중단: \(reasonText)") }
     }
 
@@ -205,8 +214,10 @@ final class CameraLab: NSObject, ObservableObject {
     }
 
     @objc private func runtimeError(_ notification: Notification) {
-        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? Error
-        DispatchQueue.main.async { self.addLog("❌ 카메라 런타임 오류: \(error?.localizedDescription ?? "알 수 없음")") }
+        // 원인 추적을 위해 도메인과 코드까지 남긴다.
+        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? NSError
+        let text = error.map { "\($0.localizedDescription) [\($0.domain) \($0.code)]" } ?? "알 수 없음"
+        DispatchQueue.main.async { self.addLog("❌ 카메라 런타임 오류: \(text)") }
     }
 
     private static func describe(_ reason: AVCaptureSession.InterruptionReason) -> String {
