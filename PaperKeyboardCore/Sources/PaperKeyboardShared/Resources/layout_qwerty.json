@@ -1,0 +1,44 @@
+{
+  "name": "qwerty-a4-landscape",
+  "version": 1,
+  "paper": { "width": 297, "height": 210 },
+  "markers": { "size": 15, "inset": 10 },
+  "keyPitch": 19,
+  "keySize": 17,
+  "rows": [
+    {
+      "x": 39.25,
+      "y": 67,
+      "keys": [
+        { "value": "q" }, { "value": "w" }, { "value": "e" }, { "value": "r" }, { "value": "t" },
+        { "value": "y" }, { "value": "u" }, { "value": "i" }, { "value": "o" }, { "value": "p" },
+        { "kind": "backspace", "units": 1.5 }
+      ]
+    },
+    {
+      "x": 44,
+      "y": 86,
+      "keys": [
+        { "value": "a" }, { "value": "s" }, { "value": "d" }, { "value": "f" }, { "value": "g" },
+        { "value": "h" }, { "value": "j" }, { "value": "k" }, { "value": "l" },
+        { "kind": "enter", "units": 1.75 }
+      ]
+    },
+    {
+      "x": 39.25,
+      "y": 105,
+      "keys": [
+        { "kind": "shift", "units": 1.5 },
+        { "value": "z" }, { "value": "x" }, { "value": "c" }, { "value": "v" }, { "value": "b" },
+        { "value": "n" }, { "value": "m" }, { "value": "," }, { "value": "." }
+      ]
+    },
+    {
+      "x": 91.5,
+      "y": 124,
+      "keys": [
+        { "kind": "space", "units": 6 }
+      ]
+    }
+  ]
+}
