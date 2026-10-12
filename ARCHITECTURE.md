@@ -41,6 +41,9 @@
 - 카메라 버퍼 방향과 기기 방향(가로/세로)이 다를 수 있다. Vision 요청에 올바른 `orientation`을 넘긴다.
 - 원칙: **키 판정은 화면 좌표가 아니라 "카메라 원본 픽셀 → 호모그래피 → 종이 mm 좌표"로만 한다.** 화면 좌표는 디버그 표시에만 쓴다.
 - `CoordinateMapper`는 순수 함수로 작성하고, 알려진 점(마커 중심, 키 중심)으로 왕복 변환 단위 테스트를 반드시 작성한다.
+- 구현 (`PaperKeyboardCore`): 좌표 공간마다 타입을 나눠 섞이지 않게 한다. `NormalizedPoint`(Vision, 왼쪽 아래 원점) → `PixelPoint`(원본 픽셀, 왼쪽 위 원점) → `PaperPoint`(종이 mm, 왼쪽 위 원점). 미러링은 `CoordinateMapper.mirroredForDisplay`에서만 하고, 미러링 좌표로 판정하면 틀린 키가 나온다는 회귀 테스트가 있다.
+- 마커와 손끝은 **같은 orientation으로 Vision에 넘긴 같은 이미지 공간**에서 구해야 한다. 호모그래피가 회전을 흡수하므로 공간만 같으면 버퍼 방향과 무관하게 맞는다.
+- 종이 좌표: 원점은 종이 왼쪽 위, x 오른쪽, y 아래, 단위 mm. 레이아웃 JSON도 같은 좌표계다.
 
 ## 4. 누름 판정 상태 머신 (`PressDetector`)
 ```
@@ -56,12 +59,21 @@ PRESSED ──그대로 머묾──► PRESSED (추가 입력 없음)
 - 모든 임계값(dwell 시간, 속도, 여백, 신뢰도)은 설정 구조체 하나에 모으고 디버그 화면에서 조절 가능하게 한다.
 - 판정에 쓰인 값(속도, 머문 시간, 상태 전이)을 디버그 로그로 남겨 튜닝에 쓴다.
 - v1은 **검지 하나**만 추적한다 (양손 중 신뢰도가 높은 손). 여러 손가락은 v2 이후.
+- 구현 세부 (`PressDetector`, 설정은 `RecognitionSettings`):
+  - 입력은 프레임마다 `Observation`(시각, 종이 mm 손끝 또는 "손 없음", 신뢰도). 스무딩은 그 전에 `FingertipSmoother`가 한다.
+  - 신뢰도가 `minConfidence` 미만인 프레임은 버리고 상태를 유지한다. 상태를 IDLE로 되돌리는 것은 "손 없음" 프레임뿐이다.
+  - 유효 프레임 간격이 `maxSampleGap`을 넘으면 속도 계산만 새로 시작한다 (끊긴 사이의 이동을 속도로 오해하지 않게).
+  - 멈춤 판정 속도는 직전 유효 프레임과의 거리/시간(mm/s). dwell 시간은 처음 멈춘 프레임부터 잰다.
+  - 들림 판정은 누른 위치(anchor)에서 `releaseDistance` 이상 멀어진 경우.
+- **열린 문제**: 단일 전면 카메라는 깊이를 알 수 없어, "키 위에 손가락을 멈춰 올려 둠"과 "눌렀다가 멈춤"이 화면상 같다. 현재 설계(dwell)에서는 손끝을 키 위에 멈추면 1회 입력된다. PRD 9절 성공 기준 "올려만 두었을 때는 입력되지 않는다"와 충돌하므로 4단계 실기기 튜닝 때 다른 신호(손끝/관절 각도, 접근 방향 등)를 검토한다. 현재 테스트는 "지나가기만 함 → 0회", "누른 채 유지 → 1회"로 해석했다.
 
 ## 5. 보정 고정 (`PaperKeyboardDetector`)
 - 네 마커가 모두 보이고, 연속 N프레임 동안 위치 변화가 작으면 호모그래피를 **고정(lock)** 한다.
 - 고정 후에는 손이 마커를 가려도 고정값을 계속 쓴다. 마커가 다시 보일 때 위치 차이가 크면(종이가 밀림) "재보정 필요" 상태로 알린다.
 - 사용자가 누르는 "재보정" 버튼으로 언제든 다시 잡을 수 있다.
 - 마커 검출 방법 후보: Vision `VNDetectRectanglesRequest`로 종이 외곽 검출, 또는 인쇄된 검은 사각형 마커를 Vision/Core Image로 검출. 1~2단계에서 실험 후 결정하고 결과를 이 문서에 기록.
+- **열린 문제 (2단계에서 결정)**: 네 마커가 모두 같은 검은 사각형이면 어느 것이 왼쪽 위인지 구분할 수 없다. 종이가 카메라에 거꾸로 비치면 키가 뒤바뀐다. 마커 하나를 다른 모양으로 하거나, 거치 방향을 고정하고 화면 위치로 정하는 방법 중 하나를 고른다.
+- 호모그래피 계산은 `Homography`(점 정규화 + 8x8 연립방정식)로 구현되어 있다. 세 마커가 거의 한 직선이면 계산을 거부한다 (`nil`).
 
 ## 6. 앱 ↔ 키보드 이벤트 채널
 ### 포맷
@@ -77,6 +89,12 @@ KeyEvent { seq: UInt64(단조 증가), kind: char|space|enter|backspace|shift, v
 - 키보드가 처음 나타날 때는 현재 마지막 순번으로 맞추고 시작 (과거 이벤트 재생 금지).
 - iOS는 앱마다 키보드 컨트롤러를 새로 만들 수 있으므로 **상태를 컨트롤러 인스턴스에 의존하지 않는다.** 알림 옵저버는 `viewWillAppear`/`viewDidDisappear`에서 등록/해제해 중복 등록을 막는다.
 - Darwin 알림은 데이터를 실어 나르지 못하므로 "깨우기" 용도로만 쓰고, 데이터는 항상 파일에서 읽는다. 알림을 놓칠 경우를 대비해 키보드가 보이는 동안 짧은 주기 폴링을 보조로 둔다.
+- 구현 (`EventChannel`, `EventLogWriter`, `EventCursor`):
+  - 쓰는 쪽은 메인 앱 하나. 시작할 때 파일의 마지막 순번에서 이어 쓴다. 이전 쓰기가 줄 중간에서 끊겼으면 새 줄에서 시작한다.
+  - 저장 개수가 `maxStoredEvents`의 두 배를 넘으면 최근 `maxStoredEvents`개만 남기고 파일을 원자적으로 교체한다.
+  - 읽기 결과는 해석 못 한 줄 수(`unreadableLines`)를 함께 돌려준다. 쓰는 중인 마지막 줄은 다음 읽기에서 정상으로 읽힌다.
+  - 파일의 최대 순번이 커서보다 작으면 (앱 재설치 등으로 순번이 처음부터 다시 시작) 재생 없이 커서를 다시 맞춘다.
+  - 커서(`EventCursor.lastSeq`)는 컨트롤러가 아니라 App Group 저장소에 보관한다 (5단계에서 구현).
 ### 권한
 - 키보드 확장의 App Group 쓰기/읽기는 **Full Access(`RequestsOpenAccess = YES`)** 가 없으면 조용히 실패할 수 있다. 키보드 UI에 Full Access 상태(`hasFullAccess`)를 표시하고, 꺼져 있으면 켜는 방법을 안내한다.
 ### 모드 B
@@ -122,6 +140,39 @@ PaperKeyboard/
 └── Tests/                            # CoordinateMapper, PressDetector, EventChannel 단위 테스트
 ```
 
+### 실제 배치 (2026-10-12 결정)
+카메라·UI와 무관한 순수 로직은 Swift 패키지 `PaperKeyboardCore/`로 분리했다. iPad 없이 Mac에서 `swift test`로 검증할 수 있고, 나중에 앱/확장 Xcode 타겟이 로컬 패키지로 가져다 쓴다. 위 구조의 `Shared/`, `Recognition/` 순수 부분, `Resources/layout_qwerty.json`, `Tests/`가 여기로 옮겨졌다.
+```
+PaperKeyboardCore/
+├── Package.swift
+├── Sources/
+│   ├── PaperKeyboardShared/          # 앱 + 키보드 확장 공용 (카메라/Vision 금지)
+│   │   ├── AppGroup.swift
+│   │   ├── KeyEvent.swift            # KeyKind, KeyEvent
+│   │   ├── EventChannel.swift        # EventChannel, EventLogWriter, EventCursor
+│   │   ├── Geometry.swift            # PaperPoint, PaperRect, CornerQuad
+│   │   ├── KeyboardLayout.swift
+│   │   └── Resources/layout_qwerty.json
+│   └── PaperKeyboardRecognition/     # 메인 앱 전용 순수 계산 (Vision 호출은 앱 타겟에서)
+│       ├── CoordinateMapper.swift    # 좌표 타입, Vision↔픽셀, PaperMapping
+│       ├── Homography.swift
+│       ├── FingertipSmoother.swift
+│       ├── PressDetector.swift
+│       └── RecognitionSettings.swift # 임계값 모음
+└── Tests/
+    ├── PaperKeyboardSharedTests/
+    └── PaperKeyboardRecognitionTests/
+```
+`CameraService`, Vision을 부르는 `PaperKeyboardDetector`/`FingertipTracker`, `PrintableLayoutRenderer`, `EventPublisher`(Darwin 알림 포함), 키보드 확장 코드는 모드 결정 후 앱 타겟에 만든다.
+
+### 레이아웃 정의 파일 형식 (`layout_qwerty.json`, 단위 mm)
+- `paper`: 종이 폭/높이. 현재 A4 가로(297 x 210).
+- `markers`: `size`(마커 한 변), `inset`(종이 가장자리에서 마커까지). 마커 중심이 호모그래피 기준점.
+- `keyPitch`(키 칸 간격), `keySize`(실제 키 크기). 둘의 차이가 키 사이 틈.
+- `rows[]`: `x`, `y`(행 첫 칸의 왼쪽 위)와 `keys[]`. 키는 `kind`(생략 시 `char`), `value`(글자), `label`(생략 시 대문자), `units`(폭 배수, 기본 1).
+- 읽을 때 검사: 버전, 키 ID 중복, 종이 밖, 키끼리 겹침, 마커와 겹침.
+- 종이 크기와 키 크기는 1단계 실험 3(거치 화각) 결과에 따라 바꿀 수 있다.
+
 ## 10. 테스트 전략
 - 시뮬레이터에는 카메라가 없다. 인식은 **실제 iPad**에서 검증한다.
 - 카메라 없이 테스트할 수 있게 인식 파이프라인 입력을 `CVPixelBuffer` 프레임 스트림으로 추상화하고, 저장된 샘플 이미지로 돌릴 수 있게 한다.
@@ -130,3 +181,4 @@ PaperKeyboard/
   - `PressDetector`: 손끝 좌표 시퀀스를 넣어 "올려두기만 함 → 입력 0회", "한 번 누름 → 1회", "누른 채 유지 → 1회", "경계 떨림 → 오입력 없음" 검증
   - `EventChannel`: 순번 중복/역순/오래된 이벤트 처리
 - 키보드 확장 디버깅: Xcode에서 확장 스킴을 선택하고 실행할 호스트 앱(예: 메모)을 지정하면 확장에 디버거를 붙일 수 있다.
+- 순수 로직 테스트 실행: `PaperKeyboardCore` 폴더에서 `swift test` (Mac에서 바로 실행, iPad 불필요). Swift Testing 사용.

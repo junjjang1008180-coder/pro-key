@@ -57,6 +57,7 @@
 
 ## 테스트 규칙
 - `CoordinateMapper`, `PressDetector`, `EventChannel`은 단위 테스트를 먼저 작성하거나 함께 작성해라 (테스트 시나리오는 ARCHITECTURE.md 10절).
+- 순수 로직은 `PaperKeyboardCore/` 패키지에 두고 `swift test`로 검증한다. 이 패키지에는 AVFoundation, Vision, UIKit을 넣지 마라. 코드를 바꾸면 커밋 전에 반드시 `swift test`를 통과시켜라.
 - 카메라 기능은 실제 iPad에서 검증하고, 사용자가 따라 할 테스트 절차를 단계별로 안내해라.
 - 버그를 고칠 때는 원인을 한 줄로 설명하고, 같은 버그가 다시 생기지 않도록 테스트를 추가해라.
 
