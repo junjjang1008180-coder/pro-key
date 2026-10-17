@@ -11,6 +11,10 @@ let package = Package(
         .library(name: "PaperKeyboardShared", targets: ["PaperKeyboardShared"]),
         // 메인 앱 전용 인식 로직 (순수 계산만, Vision 호출은 앱 타겟에서).
         .library(name: "PaperKeyboardRecognition", targets: ["PaperKeyboardRecognition"]),
+        // 메인 앱 전용 인쇄용 PDF 생성. 키보드 확장은 링크하지 않는다.
+        .library(name: "PaperKeyboardPrinting", targets: ["PaperKeyboardPrinting"]),
+        // Mac에서 인쇄용 PDF를 바로 만드는 도구: swift run layout-pdf
+        .executable(name: "layout-pdf", targets: ["layout-pdf"]),
     ],
     targets: [
         .target(
@@ -21,13 +25,21 @@ let package = Package(
             name: "PaperKeyboardRecognition",
             dependencies: ["PaperKeyboardShared"]
         ),
+        .target(
+            name: "PaperKeyboardPrinting",
+            dependencies: ["PaperKeyboardShared"]
+        ),
+        .executableTarget(
+            name: "layout-pdf",
+            dependencies: ["PaperKeyboardPrinting", "PaperKeyboardShared"]
+        ),
         .testTarget(
             name: "PaperKeyboardSharedTests",
             dependencies: ["PaperKeyboardShared"]
         ),
         .testTarget(
             name: "PaperKeyboardRecognitionTests",
-            dependencies: ["PaperKeyboardRecognition", "PaperKeyboardShared"]
+            dependencies: ["PaperKeyboardRecognition", "PaperKeyboardShared", "PaperKeyboardPrinting"]
         ),
     ]
 )
