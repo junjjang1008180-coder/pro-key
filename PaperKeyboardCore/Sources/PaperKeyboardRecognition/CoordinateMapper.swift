@@ -127,6 +127,21 @@ public struct PaperMapping: Equatable, Sendable {
         return mapped.count == 4 ? mapped : nil
     }
 
+    /// 카메라 영상에서 `pixel`을 `pixelDirection` 쪽으로 조금 옮기면 종이 위에서 어느 방향으로 움직이는지 (단위 벡터).
+    /// 영상의 "실제 위쪽"을 넣으면 손끝을 들어 올릴 때 종이 좌표가 움직이는 방향이 된다 (누름 판정의 들림 기준).
+    public func paperDirection(at pixel: PixelPoint, pixelDirection: (x: Double, y: Double)) -> PaperPoint? {
+        let step = 20.0
+        let length = hypot(pixelDirection.x, pixelDirection.y)
+        guard length > 0,
+              let a = paper(fromPixel: pixel),
+              let b = paper(fromPixel: PixelPoint(x: pixel.x + pixelDirection.x / length * step,
+                                                  y: pixel.y + pixelDirection.y / length * step)) else { return nil }
+        let (dx, dy) = (b.x - a.x, b.y - a.y)
+        let distance = hypot(dx, dy)
+        guard distance > 1e-9 else { return nil }
+        return PaperPoint(x: dx / distance, y: dy / distance)
+    }
+
     /// 화면에서 종이가 똑바로(종이 위쪽이 화면 위쪽) 보이려면 영상을 시계 방향으로 몇 도 돌려야 하는지.
     /// 0, 90, 180, 270 중 가장 가까운 값. 웹캠이 사용자 맞은편에 있으면 종이가 거꾸로 찍히므로 180이 나온다.
     /// 버퍼는 y가 아래로 커지므로, 시계 방향 θ 회전은 (x, y) → (x·cosθ − y·sinθ, x·sinθ + y·cosθ).

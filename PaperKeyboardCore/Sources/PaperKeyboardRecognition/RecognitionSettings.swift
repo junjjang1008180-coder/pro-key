@@ -12,14 +12,19 @@ public struct RecognitionSettings: Equatable, Sendable {
 
     /// 이 속도 이하이면 "멈춤"으로 본다 (mm/s).
     public var maxStillSpeed: Double = 50
-    /// 같은 키 위에서 멈춘 채 이만큼 지나면 누름으로 확정한다 (초).
+    /// 같은 키 위에서 멈춘 채 이만큼 지나면 "닿음"으로 본다 (초). 입력은 그 뒤 손을 들 때 한다.
     public var dwellDuration: Double = 0.12
     /// 키 진입은 키 영역을 이만큼 안쪽으로 줄여서 판정한다 (mm).
     public var entryInset: Double = 1.5
     /// 키 이탈은 키 영역을 이만큼 바깥으로 넓혀서 판정한다 (mm).
     public var exitMargin: Double = 2
-    /// 누른 위치에서 이보다 멀어지면 손을 든 것으로 보고 다음 입력을 허용한다 (mm).
+    /// 닿은 위치에서 (방향과 관계없이) 이보다 멀어지면 손을 든 것으로 본다 (mm). 들어 올림 방향을 모를 때의 기준.
     public var releaseDistance: Double = 8
+    /// 닿은 가장 낮은 위치에서 "들어 올림 방향"으로 이만큼 움직이면 손을 든 것으로 본다 (mm).
+    /// 비스듬한 카메라에서는 손끝을 조금만 들어도 영상에서 위로 움직이므로 작게 잡는다.
+    public var liftDistance: Double = 4
+    /// 닿은 뒤 이 시간 안에 들어야 입력한다 (초). 더 오래 머물면 "올려 둔 것"으로 보고 입력하지 않는다.
+    public var maxTapDuration: Double = 0.6
 
     // MARK: 마커 검출 (MarkerDetector)
 

@@ -70,4 +70,24 @@ struct GrayImageCameraTests {
         let mapping = try #require(PaperMapping(markerPixels: pixels, markerPaper: paper))
         #expect(mapping.uprightRotationDegrees(paperWidth: 297, paperHeight: 210) == expected)
     }
+
+    @Test func 영상의_위쪽이_종이에서_어느_방향인지() throws {
+        let paper = CornerQuad(
+            topLeft: PaperPoint(x: 0, y: 0), topRight: PaperPoint(x: 297, y: 0),
+            bottomRight: PaperPoint(x: 297, y: 210), bottomLeft: PaperPoint(x: 0, y: 210)
+        )
+        func mapping(_ corners: [(Double, Double)]) throws -> PaperMapping {
+            let p = corners.map { PixelPoint(x: $0.0, y: $0.1) }
+            return try #require(PaperMapping(markerPixels: CornerQuad(topLeft: p[0], topRight: p[1], bottomRight: p[2], bottomLeft: p[3]), markerPaper: paper))
+        }
+        let up = (x: 0.0, y: -1.0)
+        // 똑바로 찍힘: 영상 위쪽 = 종이 위쪽(-y)
+        let upright = try mapping([(100, 100), (397, 100), (397, 310), (100, 310)])
+        let a = try #require(upright.paperDirection(at: PixelPoint(x: 250, y: 200), pixelDirection: up))
+        #expect(abs(a.x) < 1e-9 && abs(a.y + 1) < 1e-9)
+        // 맞은편 웹캠: 종이가 거꾸로 찍힘 → 영상 위쪽 = 종이 아래쪽(+y, 사용자 쪽). 손끝을 들면 +y로 움직인다.
+        let opposite = try mapping([(397, 310), (100, 310), (100, 100), (397, 100)])
+        let b = try #require(opposite.paperDirection(at: PixelPoint(x: 250, y: 200), pixelDirection: up))
+        #expect(abs(b.x) < 1e-9 && abs(b.y - 1) < 1e-9)
+    }
 }

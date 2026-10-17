@@ -10,12 +10,14 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    slider("멈춰 있어야 하는 시간", value: $model.settings.dwellDuration, range: 0.05...0.6, step: 0.01, unit: "초", format: "%.2f",
-                           help: "키 위에서 이만큼 멈추면 누른 것으로 봅니다. 길수록 실수로 눌리는 일이 줄지만 느려집니다.")
+                    slider("닿음으로 보는 멈춤 시간", value: $model.settings.dwellDuration, range: 0.05...0.6, step: 0.01, unit: "초", format: "%.2f",
+                           help: "키 위에서 이만큼 멈추면 닿은 것으로 봅니다. 입력은 그 뒤 손가락을 들 때 됩니다.")
+                    slider("톡 치기 최대 시간", value: $model.settings.maxTapDuration, range: 0.2...1.5, step: 0.05, unit: "초", format: "%.2f",
+                           help: "닿은 뒤 이 시간 안에 손가락을 들어야 입력됩니다. 더 오래 올려 두면 입력하지 않습니다. 천천히 누르는 편이면 늘리세요.")
                     slider("멈춤으로 보는 속도", value: $model.settings.maxStillSpeed, range: 10...200, step: 5, unit: "mm/s", format: "%.0f",
                            help: "손끝이 이보다 느리면 멈춘 것으로 봅니다. 손이 떨려서 안 눌리면 올리세요.")
-                    slider("손을 뗀 것으로 보는 거리", value: $model.settings.releaseDistance, range: 3...20, step: 1, unit: "mm", format: "%.0f",
-                           help: "누른 자리에서 이만큼 움직이면 손을 뗀 것으로 보고 다음 입력을 받습니다.")
+                    slider("들어 올림으로 보는 거리", value: $model.settings.liftDistance, range: 1...15, step: 0.5, unit: "mm", format: "%.1f",
+                           help: "닿은 자리에서 손끝이 위로 이만큼 움직이면 손을 든 것으로 봅니다. 같은 글자가 두 번 안 쳐지면 줄이고, 한 번 눌렀는데 두 번 쳐지면 늘리세요.")
                     slider("손끝 인식 최소 신뢰도", value: $model.settings.minConfidence, range: 0.1...0.9, step: 0.05, unit: "", format: "%.2f",
                            help: "이보다 확실하지 않은 손끝은 무시합니다.")
                 } header: {

@@ -1,4 +1,5 @@
 import AudioToolbox
+import Combine
 import PaperKeyboardRecognition
 import PaperKeyboardShared
 import SwiftUI
@@ -35,6 +36,7 @@ final class AppModel: ObservableObject {
     private var resolver = KeyInputResolver()
     private var composer = HangulComposer()
     private var flashWorkItem: DispatchWorkItem?
+    private var cancellables: Set<AnyCancellable> = []
 
     /// 판정 임계값 (디버그 화면에서 조절, 기기에 저장).
     @Published var settings: RecognitionSettings {
@@ -62,6 +64,10 @@ final class AppModel: ObservableObject {
         detector.onKeyPress = { [weak self] key in
             DispatchQueue.main.async { self?.handlePress(key) }
         }
+        // 영상의 실제 위쪽(손끝을 드는 방향)을 계산하려면 영상이 얼마나 돌아가 있는지 알아야 한다.
+        camera.$captureRotation
+            .sink { [detector] rotation in detector.update(captureRotation: rotation) }
+            .store(in: &cancellables)
         // 카메라가 바뀌면 화면 속 종이 위치가 달라지므로 다시 찾는다.
         camera.onCameraChanged = { [weak self] in
             self?.paperRotation = nil
@@ -140,14 +146,15 @@ enum SettingsStore {
     private static let defaults = UserDefaults.standard
     private static let keys = (
         dwell: "settings.dwellDuration", stillSpeed: "settings.maxStillSpeed",
-        release: "settings.releaseDistance", confidence: "settings.minConfidence"
+        lift: "settings.liftDistance", maxTap: "settings.maxTapDuration", confidence: "settings.minConfidence"
     )
 
     static func load() -> RecognitionSettings {
         var settings = RecognitionSettings()
         if let value = defaults.object(forKey: keys.dwell) as? Double { settings.dwellDuration = value }
         if let value = defaults.object(forKey: keys.stillSpeed) as? Double { settings.maxStillSpeed = value }
-        if let value = defaults.object(forKey: keys.release) as? Double { settings.releaseDistance = value }
+        if let value = defaults.object(forKey: keys.lift) as? Double { settings.liftDistance = value }
+        if let value = defaults.object(forKey: keys.maxTap) as? Double { settings.maxTapDuration = value }
         if let value = defaults.object(forKey: keys.confidence) as? Double { settings.minConfidence = value }
         return settings
     }
@@ -155,7 +162,8 @@ enum SettingsStore {
     static func save(_ settings: RecognitionSettings) {
         defaults.set(settings.dwellDuration, forKey: keys.dwell)
         defaults.set(settings.maxStillSpeed, forKey: keys.stillSpeed)
-        defaults.set(settings.releaseDistance, forKey: keys.release)
+        defaults.set(settings.liftDistance, forKey: keys.lift)
+        defaults.set(settings.maxTapDuration, forKey: keys.maxTap)
         defaults.set(settings.minConfidence, forKey: keys.confidence)
     }
 }

@@ -161,10 +161,13 @@ struct ContentView: View {
         switch press.state {
         case .idle: state = "대기"
         case .hover(let id): state = "\(id) 위에 있음"
-        case .pressed(let id): state = "\(id) 누름 (손을 떼야 다음 입력)"
+        case .touching(let id): state = "\(id) 닿음 (들면 입력)"
+        case .resting(let id): state = "\(id) 올려 둠 (입력 안 함)"
         }
         let speed = press.speed.map { String(format: " · 속도 %.0fmm/s", $0) } ?? ""
         let still = press.stillDuration.map { String(format: " · 멈춤 %.2f초", $0) } ?? ""
-        return "누름 판정: \(state)\(speed)\(still)"
+        let touch = press.touchDuration.map { String(format: " · 닿은 지 %.2f초", $0) } ?? ""
+        let lift = press.liftAmount.map { String(format: " · 들림 %.1fmm", $0) } ?? ""
+        return "누름 판정: \(state)\(speed)\(still)\(touch)\(lift)"
     }
 }

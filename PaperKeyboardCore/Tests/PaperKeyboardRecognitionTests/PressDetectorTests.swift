@@ -35,59 +35,110 @@ struct PressDetectorTests {
         #expect(run(s) == [])
     }
 
-    @Test func 한_번_누르면_1회() {
+    /// 맞은편 웹캠에서 손끝을 들면 종이 좌표로는 사용자 쪽(+y)으로 움직인다.
+    static let up = PaperPoint(x: 0, y: 1)
+
+    func lifted(_ point: PaperPoint, by mm: Double) -> PaperPoint {
+        PaperPoint(x: point.x, y: point.y + mm)
+    }
+
+    @Test func 톡_치면_손을_드는_순간_1회() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.4)
-        s.move(to: offKeyboard, speed: 200)
+        s.hold(seconds: 0.25)
+        s.move(to: lifted(center("f"), by: 6), speed: 150)
         #expect(run(s) == ["f"])
     }
 
-    @Test func 누른_채_유지하면_1회() {
+    @Test func 올려_두기만_하면_0회() {
+        // PRD 9절 성공 기준: 손가락을 키 위에 올려만 두었을 때는 입력되지 않는다.
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
         s.hold(seconds: 3)
-        #expect(run(s) == ["f"])
+        #expect(run(s) == [])
     }
 
-    @Test func 누른_채_조금_흔들려도_1회() {
+    @Test func 올려_뒀다가_들어도_0회() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 1.5)
+        s.move(to: lifted(center("f"), by: 6), speed: 150)
+        s.move(to: offKeyboard, speed: 200)
+        #expect(run(s) == [])
+    }
+
+    @Test func 같은_키를_두_번_톡톡_치면_2회() {
+        // 실기기 버그: l → l이 한 번만 입력됨 (손을 조금만 들면 8mm 이동 기준을 못 넘음)
+        var s = Script(start: offKeyboard)
+        s.move(to: center("l"), speed: 200)
+        s.hold(seconds: 0.2)
+        s.move(to: lifted(center("l"), by: 6), speed: 150)
+        s.move(to: center("l"), speed: 150)
+        s.hold(seconds: 0.2)
+        s.move(to: lifted(center("l"), by: 6), speed: 150)
+        #expect(run(s) == ["l", "l"])
+    }
+
+    @Test func 조금만_들면_아직_닿은_것으로_본다() {
+        var detector = PressDetector(layout: layout, settings: settings)
+        var s = Script(start: offKeyboard)
+        s.move(to: center("f"), speed: 200)
+        s.hold(seconds: 0.2)
+        s.move(to: lifted(center("f"), by: 2), speed: 150)
+        s.hold(seconds: 0.1)
+        #expect(s.observations.compactMap { detector.process($0)?.id } == [])
+        #expect(detector.state == .touching(keyID: "f"))
+    }
+
+    @Test func 닿은_채_옆으로_조금_흔들리다_들면_1회() {
+        var s = Script(start: offKeyboard)
+        s.move(to: center("f"), speed: 200)
+        s.hold(seconds: 0.2)
         let c = center("f")
-        s.jitter(between: PaperPoint(x: c.x - 3, y: c.y + 2), and: PaperPoint(x: c.x + 3, y: c.y - 2), seconds: 1)
+        s.jitter(between: PaperPoint(x: c.x - 2, y: c.y), and: PaperPoint(x: c.x + 2, y: c.y), seconds: 0.2)
+        s.move(to: lifted(c, by: 6), speed: 150)
         #expect(run(s) == ["f"])
     }
 
-    @Test func 손을_뗐다가_다시_누르면_2회() {
+    @Test func 공중에서_멈췄다가_내려와_닿고_들면_1회() {
+        // 공중에서 멈춘 것도 "닿음"으로 잡히지만, 기준이 가장 낮은 위치로 내려가므로 한 번만 입력된다.
+        var s = Script(start: offKeyboard)
+        s.move(to: lifted(center("f"), by: 5), speed: 200)
+        s.hold(seconds: 0.15)
+        s.move(to: center("f"), speed: 150)
+        s.hold(seconds: 0.1)
+        s.move(to: lifted(center("f"), by: 6), speed: 150)
+        #expect(run(s) == ["f"])
+    }
+
+    @Test func 닿은_뒤_손이_사라지면_들어_올린_것으로_본다() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 0.2)
         s.noHand(seconds: 0.2)
         s.jump(to: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 0.2)
+        s.noHand(seconds: 0.2)
         #expect(run(s) == ["f", "f"])
     }
 
-    @Test func 누른_위치에서_들어올리듯_멀어지면_다시_누를_수_있다() {
+    @Test func 옆_키로_미끄러지면_앞_키가_입력되고_다음_키는_톡_쳐야_입력() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
-        // 키 밖(위쪽)으로 들었다가 같은 키로 다시
-        s.move(to: PaperPoint(x: center("f").x, y: center("f").y - 30), speed: 200)
-        s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
-        #expect(run(s) == ["f", "f"])
-    }
-
-    @Test func 옆_키로_미끄러져_멈추면_각각_1회() {
-        var s = Script(start: offKeyboard)
-        s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 0.2)
         s.move(to: center("g"), speed: 150)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 0.2)
+        s.move(to: lifted(center("g"), by: 6), speed: 150)
         #expect(run(s) == ["f", "g"])
+    }
+
+    @Test func 들어_올림_방향을_모르면_거리로_판단한다() {
+        var s = Script(start: offKeyboard, lift: nil)
+        s.move(to: center("f"), speed: 200)
+        s.hold(seconds: 0.2)
+        s.move(to: lifted(center("f"), by: 9), speed: 150)   // releaseDistance 8mm 초과
+        #expect(run(s) == ["f"])
     }
 
     @Test func 키_경계에서_빠르게_떨리면_오입력_없음() throws {
@@ -100,38 +151,37 @@ struct PressDetectorTests {
         #expect(run(s) == [])
     }
 
-    @Test func 키_경계에서_느리게_떨리면_원래_키만_1회() throws {
+    @Test func 키_경계에서_느리게_떨리다_들면_원래_키만_1회() throws {
         let f = try #require(layout.key(withID: "f"))
         var s = Script(start: offKeyboard)
         s.move(to: PaperPoint(x: f.frame.maxX - 2, y: f.frame.center.y), speed: 200)
         // 경계를 1mm씩 넘나듦 (30mm/s): 옆 키 g로 넘어가면 안 된다
         s.jitter(between: PaperPoint(x: f.frame.maxX - 0.5, y: f.frame.center.y),
-                 and: PaperPoint(x: f.frame.maxX + 0.5, y: f.frame.center.y), seconds: 1.5)
+                 and: PaperPoint(x: f.frame.maxX + 0.5, y: f.frame.center.y), seconds: 0.4)
+        s.move(to: PaperPoint(x: f.frame.maxX - 0.5, y: f.frame.center.y + 6), speed: 150)
         #expect(run(s) == ["f"])
     }
 
-    @Test func 재설정하면_누른_상태가_풀려_같은_키를_다시_누를_수_있다() {
+    @Test func 재설정하면_닿아_있던_것은_입력하지_않는다() {
         var detector = PressDetector(layout: layout, settings: settings)
-        var hold = Script(start: center("f"))
-        hold.hold(seconds: 0.3)
-        let first = hold.observations.compactMap { detector.process($0)?.id }
-        #expect(first == ["f"])
-        #expect(detector.state == .pressed(keyID: "f"))
+        var s = Script(start: center("f"))
+        s.hold(seconds: 0.3)
+        #expect(s.observations.compactMap { detector.process($0)?.id } == [])
+        #expect(detector.state == .touching(keyID: "f"))
 
         detector.reset()
         #expect(detector.state == .idle)
         #expect(detector.diagnostics == nil)
-        let second = hold.observations.map { PressDetector.Observation(time: $0.time + 10, fingertip: $0.fingertip, confidence: $0.confidence) }
-            .compactMap { detector.process($0)?.id }
-        #expect(second == ["f"])
+        let after = detector.process(.fingertip(lifted(center("f"), by: 6), liftDirection: Self.up, at: 10))
+        #expect(after == nil)
     }
 
     @Test func 신뢰도_낮은_프레임은_무시하고_상태를_유지한다() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)
-        s.hold(seconds: 0.3)
-        s.hold(seconds: 0.6, confidence: 0.1)
-        s.hold(seconds: 0.3)
+        s.hold(seconds: 0.2)
+        s.hold(seconds: 0.1, confidence: 0.1)
+        s.move(to: lifted(center("f"), by: 6), speed: 150)
         #expect(run(s) == ["f"])
     }
 
@@ -139,27 +189,34 @@ struct PressDetectorTests {
         var s = Script(start: offKeyboard, confidence: 0.1)
         s.move(to: center("f"), speed: 200, confidence: 0.1)
         s.hold(seconds: 1, confidence: 0.1)
+        s.move(to: lifted(center("f"), by: 6), speed: 150, confidence: 0.1)
         #expect(run(s) == [])
     }
 
-    @Test func 상태와_진단값을_남긴다() {
+    @Test func 상태와_진단값을_남긴다() throws {
         var detector = PressDetector(layout: layout, settings: settings)
         let f = center("f")
-        _ = detector.process(.fingertip(f, at: 0))
+        _ = detector.process(.fingertip(f, liftDirection: Self.up, at: 0))
         #expect(detector.state == .hover(keyID: "f"))
         #expect(detector.diagnostics?.transitions == ["키 진입 (f)"])
 
         var t = 0.0
-        var pressedAt: Double?
-        while pressedAt == nil, t < 1 {
+        while detector.state != .touching(keyID: "f"), t < 1 {
             t += 1.0 / 30
-            if detector.process(.fingertip(f, at: t)) != nil { pressedAt = t }
+            #expect(detector.process(.fingertip(f, liftDirection: Self.up, at: t)) == nil)
         }
-        #expect(detector.state == .pressed(keyID: "f"))
-        #expect(pressedAt != nil)
+        #expect(detector.state == .touching(keyID: "f"))
+        #expect(detector.diagnostics?.transitions == ["닿음 (f)"])
         #expect(detector.diagnostics?.speed == 0)
 
-        _ = detector.process(.noHand(at: t + 0.1))
+        let typed = detector.process(.fingertip(lifted(f, by: 6), liftDirection: Self.up, at: t + 1.0 / 30))
+        #expect(typed?.id == "f")
+        let lift = try #require(detector.diagnostics?.liftAmount)
+        #expect(abs(lift - 6) < 1e-9)
+        #expect(detector.diagnostics?.transitions.first?.hasPrefix("입력 (f, 들어 올림") == true)
+        #expect(detector.state == .hover(keyID: "f"))
+
+        _ = detector.process(.noHand(at: t + 0.2))
         #expect(detector.state == .idle)
         #expect(detector.diagnostics?.transitions == ["손 사라짐"])
     }
@@ -172,9 +229,12 @@ struct Script {
     private(set) var observations: [PressDetector.Observation] = []
     private var time = 0.0
     private var position: PaperPoint
+    /// 손끝 들어 올림 방향. 기본은 맞은편 웹캠 (+y). nil이면 모른다고 넘긴다.
+    private let lift: PaperPoint?
 
-    init(start: PaperPoint, confidence: Double = 1) {
+    init(start: PaperPoint, confidence: Double = 1, lift: PaperPoint? = PaperPoint(x: 0, y: 1)) {
         position = start
+        self.lift = lift
         emit(confidence: confidence)
     }
 
@@ -220,6 +280,6 @@ struct Script {
 
     private mutating func emit(confidence: Double) {
         time += Self.frameInterval
-        observations.append(.fingertip(position, confidence: confidence, at: time))
+        observations.append(.fingertip(position, confidence: confidence, liftDirection: lift, at: time))
     }
 }

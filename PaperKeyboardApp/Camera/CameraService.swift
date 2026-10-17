@@ -29,6 +29,10 @@ final class CameraService: NSObject, ObservableObject {
     @Published private(set) var currentDevice: AVCaptureDevice?
     /// 사용자가 고른 카메라. nil이면 자동(웹캠 우선).
     @Published private(set) var chosenCameraID: String?
+    /// 원본 영상을 수평으로 만들려면 시계 방향으로 돌릴 각도. 영상에서 "실제 위쪽"을 알 때 쓴다 (웹캠은 보통 0).
+    @Published private(set) var captureRotation: Double = 0
+    private var captureCoordinator: AVCaptureDevice.RotationCoordinator?
+    private var captureObservation: NSKeyValueObservation?
 
     /// 프레임마다 `videoQueue`에서 불린다. 미러링·회전하지 않은 원본 버퍼와 찍힌 시각(초).
     var onFrame: ((CVPixelBuffer, Double) -> Void)?
@@ -161,6 +165,7 @@ final class CameraService: NSObject, ObservableObject {
             let enabled = self.session.isMultitaskingCameraAccessEnabled
             DispatchQueue.main.async {
                 self.currentDevice = device
+                self.observeCaptureRotation(of: device)
                 self.status.cameraName = device.localizedName
                 self.status.isExternal = device.deviceType == .external
                 self.status.resolution = "\(dimensions.width)×\(dimensions.height)"
@@ -225,6 +230,16 @@ final class CameraService: NSObject, ObservableObject {
     @objc private func runtimeError(_ notification: Notification) {
         let error = notification.userInfo?[AVCaptureSessionErrorKey] as? NSError
         report(problem: "❌ 카메라 오류: \(error?.localizedDescription ?? "알 수 없음") [\(error?.code ?? 0)]")
+    }
+
+    private func observeCaptureRotation(of device: AVCaptureDevice) {
+        guard captureCoordinator?.device != device else { return }
+        let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        captureCoordinator = coordinator
+        captureRotation = coordinator.videoRotationAngleForHorizonLevelCapture
+        captureObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelCapture, options: [.new]) { [weak self] coordinator, _ in
+            DispatchQueue.main.async { self?.captureRotation = coordinator.videoRotationAngleForHorizonLevelCapture }
+        }
     }
 
     private func report(problem: String?) {

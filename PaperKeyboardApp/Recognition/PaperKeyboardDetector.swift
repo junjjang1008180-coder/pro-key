@@ -61,6 +61,9 @@ final class PaperKeyboardDetector {
     private let resetLock = NSLock()
     private var resetRequested = false
     private var pendingSettings: RecognitionSettings?
+    private var pendingCaptureRotation: Double?
+    /// 원본 영상을 수평으로 만드는 시계 방향 각도. 영상에서 실제 위쪽(손끝을 드는 방향)을 구할 때 쓴다.
+    private var captureRotation = 0.0
 
     init(layout: KeyboardLayout, settings: RecognitionSettings = RecognitionSettings()) {
         self.layout = layout
@@ -69,6 +72,13 @@ final class PaperKeyboardDetector {
         self.calibration = CalibrationLock(markerPaper: layout.markerCenters, settings: settings)
         self.smoother = FingertipSmoother(settings: settings)
         self.press = PressDetector(layout: layout, settings: settings)
+    }
+
+    /// 카메라가 바뀌거나 기기를 돌렸을 때. 다음 프레임부터 적용된다.
+    func update(captureRotation: Double) {
+        resetLock.lock()
+        pendingCaptureRotation = captureRotation
+        resetLock.unlock()
     }
 
     /// 판정 임계값 바꾸기 (디버그 화면). 다음 프레임부터 적용된다.
@@ -91,6 +101,8 @@ final class PaperKeyboardDetector {
         resetRequested = false
         let newSettings = pendingSettings
         pendingSettings = nil
+        if let rotation = pendingCaptureRotation { captureRotation = rotation }
+        pendingCaptureRotation = nil
         resetLock.unlock()
         if let newSettings {
             settings = newSettings
@@ -180,17 +192,20 @@ final class PaperKeyboardDetector {
             smoother.reset()
             return .noHand(at: frameTime)
         }
+        // 손끝을 들면 영상에서 실제 위쪽으로 움직인다 → 종이 좌표에서의 그 방향이 누름 판정의 "들림" 방향.
+        let angle = captureRotation * .pi / 180
+        let lift = mapping.paperDirection(at: result.pixel, pixelDirection: (x: -sin(angle), y: -cos(angle)))
         guard result.confidence >= settings.minConfidence else {
             // 신뢰도가 낮은 프레임: 손이 사라진 것과 구분해, 위치만 회색으로 보여 주고 키 판단은 하지 않는다.
             // 누름 판정기도 신뢰도를 보고 이 프레임을 버린다 (상태 유지).
             last.fingertip = Fingertip(pixel: result.pixel, paper: nil, confidence: result.confidence)
             last.hoveredKeyID = nil
-            return .fingertip(paper, confidence: result.confidence, at: frameTime)
+            return .fingertip(paper, confidence: result.confidence, liftDirection: lift, at: frameTime)
         }
         let smoothed = smoother.smooth(paper, at: frameTime)
         last.fingertip = Fingertip(pixel: mapping.pixel(fromPaper: smoothed) ?? result.pixel, paper: smoothed, confidence: result.confidence)
         last.hoveredKeyID = layout.key(at: smoothed)?.id
-        return .fingertip(smoothed, confidence: result.confidence, at: frameTime)
+        return .fingertip(smoothed, confidence: result.confidence, liftDirection: lift, at: frameTime)
     }
 
     /// 상태가 바뀌면 바로, 아니면 초당 15번 정도만 화면에 보낸다.
