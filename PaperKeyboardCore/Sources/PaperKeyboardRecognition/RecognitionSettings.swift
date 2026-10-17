@@ -23,6 +23,11 @@ public struct RecognitionSettings: Equatable, Sendable {
 
     // MARK: 마커 검출 (MarkerDetector)
 
+    /// 카메라 영상을 이 폭 정도로 줄여서 마커를 찾는다 (픽셀). 1920 폭이면 3칸씩 묶어 640.
+    public var detectionImageWidth: Int = 640
+    /// 보정이 고정된 뒤에는 밀림 확인만 하면 되므로 이 프레임 수마다 한 번만 검출한다.
+    public var lockedDetectionInterval: Int = 3
+
     /// 주변 평균 밝기를 구하는 창의 한 변. 이미지 짧은 변에 대한 비율. 마커보다 충분히 커야 마커 속이 검게 잡힌다.
     public var markerThresholdWindowFraction: Double = 0.25
     /// 주변 평균보다 이 비율 이상 어두우면 "검은 픽셀"로 본다 (0.4 = 40% 더 어두움).

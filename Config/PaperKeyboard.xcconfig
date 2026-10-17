@@ -1,0 +1,5 @@
+// 종이 키보드 앱 공통 설정.
+// 서명 팀 ID는 저장소에 올리지 않는 로컬 파일에서 가져온다 (.gitignore에 등록됨).
+// 처음 받는 사람은 Signing.local.example.xcconfig를 Signing.local.xcconfig로 복사해 자기 팀 ID를 적거나,
+// Xcode의 Signing & Capabilities에서 팀을 고르면 된다.
+#include? "Signing.local.xcconfig"

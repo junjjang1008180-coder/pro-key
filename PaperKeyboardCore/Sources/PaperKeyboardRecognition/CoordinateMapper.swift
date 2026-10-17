@@ -78,6 +78,17 @@ public struct PaperMapping: Equatable, Sendable {
         paperToPixel.map(SIMD2(point.x, point.y)).map { PixelPoint(x: $0.x, y: $0.y) }
     }
 
+    /// 종이 위 사각형(키 등)의 네 모서리를 카메라 픽셀로. 화면에 키 테두리를 겹쳐 그릴 때 쓴다.
+    /// 순서는 왼쪽 위, 오른쪽 위, 오른쪽 아래, 왼쪽 아래. 하나라도 변환할 수 없으면 nil.
+    public func pixelCorners(of rect: PaperRect) -> [PixelPoint]? {
+        let corners = [
+            PaperPoint(x: rect.minX, y: rect.minY), PaperPoint(x: rect.maxX, y: rect.minY),
+            PaperPoint(x: rect.maxX, y: rect.maxY), PaperPoint(x: rect.minX, y: rect.maxY),
+        ]
+        let mapped = corners.compactMap(pixel(fromPaper:))
+        return mapped.count == 4 ? mapped : nil
+    }
+
     /// Vision 손끝 좌표를 바로 종이 좌표로. `imageSize`는 Vision에 넘긴 방향 기준 이미지 크기.
     public func paper(fromVision point: NormalizedPoint, imageSize: PixelSize) -> PaperPoint? {
         paper(fromPixel: CoordinateMapper.pixel(fromVision: point, imageSize: imageSize))

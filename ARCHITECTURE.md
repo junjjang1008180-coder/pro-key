@@ -42,6 +42,7 @@
 - 원칙: **키 판정은 화면 좌표가 아니라 "카메라 원본 픽셀 → 호모그래피 → 종이 mm 좌표"로만 한다.** 화면 좌표는 디버그 표시에만 쓴다.
 - `CoordinateMapper`는 순수 함수로 작성하고, 알려진 점(마커 중심, 키 중심)으로 왕복 변환 단위 테스트를 반드시 작성한다.
 - 구현 (`PaperKeyboardCore`): 좌표 공간마다 타입을 나눠 섞이지 않게 한다. `NormalizedPoint`(Vision, 왼쪽 아래 원점) → `PixelPoint`(원본 픽셀, 왼쪽 위 원점) → `PaperPoint`(종이 mm, 왼쪽 위 원점). 미러링은 `CoordinateMapper.mirroredForDisplay`에서만 하고, 미러링 좌표로 판정하면 틀린 키가 나온다는 회귀 테스트가 있다.
+- 앱 구현: 인식용 비디오 출력은 **회전·미러링하지 않는다** (`isVideoMirrored = false`, 회전 각도 설정 안 함). 그래서 버퍼 픽셀 ÷ 버퍼 크기 = 카메라 기기 좌표(0~1)이고, 화면 오버레이는 `AVCaptureVideoPreviewLayer.layerPointConverted(fromCaptureDevicePoint:)`로 바꾼다. 프리뷰가 화면에서 회전·좌우 반전돼도 오버레이가 영상과 같이 따라간다.
 - 마커와 손끝은 **같은 orientation으로 Vision에 넘긴 같은 이미지 공간**에서 구해야 한다. 호모그래피가 회전을 흡수하므로 공간만 같으면 버퍼 방향과 무관하게 맞는다.
 - 종이 좌표: 원점은 종이 왼쪽 위, x 오른쪽, y 아래, 단위 mm. 레이아웃 JSON도 같은 좌표계다.
 
@@ -181,7 +182,19 @@ PaperKeyboardCore/
     └── PaperKeyboardRecognitionTests/  # SyntheticCamera: 인쇄 그림을 원근 변환한 가짜 카메라 이미지
 Printables/paper_keyboard_qwerty_a4.pdf  # 인쇄용 (layout-pdf로 다시 만들 수 있음)
 ```
-`CameraService`, Vision을 부르는 `FingertipTracker`, 카메라 프레임을 검출기에 잇는 `PaperKeyboardDetector`, `EventPublisher`(Darwin 알림 포함), 키보드 확장 코드는 모드 결정 후 앱 타겟에 만든다.
+앱 프로젝트 (2단계부터, 저장소 최상위):
+```
+PaperKeyboard.xcodeproj               # 메인 앱 타겟 (키보드 확장 타겟은 5단계에서 추가)
+PaperKeyboardApp/
+├── App/PaperKeyboardApp.swift        # @main, AppModel (카메라 ↔ 인식 연결)
+├── Camera/CameraService.swift        # 웹캠 우선, 없으면 전면 초광각. 원본(미러링·회전 없음) 프레임 전달
+├── Recognition/PaperKeyboardDetector.swift  # 프레임 → GrayImage(640폭) → MarkerDetector → CalibrationLock
+├── Views/ContentView.swift           # 상태 안내, 카메라 선택, 재보정
+├── Views/CameraOverlayView.swift     # 프리뷰 + 마커/키 테두리 겹쳐 그리기
+└── Assets.xcassets                   # 앱 아이콘
+Config/PaperKeyboard.xcconfig         # 공통 설정, 서명 팀은 Signing.local.xcconfig(git 제외)에서 가져옴
+```
+`FingertipTracker`(Vision), `EventPublisher`, 키보드 확장은 해당 단계에서 추가한다.
 
 ### 레이아웃 정의 파일 형식 (`layout_qwerty.json`, 단위 mm)
 - `paper`: 종이 폭/높이. 현재 A4 가로(297 x 210).
