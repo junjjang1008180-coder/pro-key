@@ -118,7 +118,7 @@
 
 | 실험 | 결과 | 비고 |
 |---|---|---|
-| 1. 멀티태스킹 카메라 (`isMultitaskingCameraAccessSupported`, Split View / Slide Over / Stage Manager에서 프레임 유지) | **값은 true, 실제 유지는 미확인** | 2026-10-17 iPad Air 11 M4 / iPadOS 26.6.2: `Supported = true`, `Enabled = true`. 전면 초광각 1920×1080 30fps, Center Stage 끔. 전체 화면에서 키보드가 떠도 프레임 유지. 다른 앱과 나란히 띄운 상태는 아직 안 해 봄 |
+| 1. 멀티태스킹 카메라 (`isMultitaskingCameraAccessSupported`, Split View / Slide Over / Stage Manager에서 프레임 유지) | **창 앱 모드에서 유지됨** | 2026-10-17 iPad Air 11 M4 / iPadOS 26.6.2: `Supported = true`, `Enabled = true`. 전면 초광각 1920×1080 30fps, Center Stage 끔. **창 앱 모드로 메모와 나란히 띄워도 30fps 유지, 프리뷰 정상** (사용자 확인). 스테이지 매니저는 아직 안 해 봄 |
 | 2. 무료 계정으로 App Group 추가 + 앱 ↔ 키보드 파일 공유 | **성공 (Full Access 켬)** | 2026-10-17: 무료 계정(Personal Team)으로 앱·키보드 모두 App Group 프로파일 발급 (7일 만료). iPad에서 앱→키보드 읽기, 키보드→앱 쓰기 모두 성공 (`Full Access=true`). 남은 확인: Full Access를 껐을 때 동작, 다른 앱(메모)에서 `insertText` |
 | 3. 거치 상태에서 종이 전체와 손이 함께 보이는지 | 미확인 | |
 
