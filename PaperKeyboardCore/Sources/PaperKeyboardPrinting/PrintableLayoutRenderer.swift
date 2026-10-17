@@ -79,9 +79,26 @@ public struct PrintableLayoutRenderer: Sendable {
             let path = CGPath(roundedRect: key.frame.cgRect, cornerWidth: 2, cornerHeight: 2, transform: nil)
             context.addPath(path)
             context.strokePath()
+            drawLabels(of: key, in: context)
+        }
+    }
 
-            let size = key.kind == .char ? 7.0 : 5.0
-            drawText(key.label, centeredAt: key.frame.center, fontSize: size, gray: 0.25, in: context)
+    /// 실제 키보드처럼: 글자 키는 영문 크게 왼쪽 + 한글 자모 오른쪽(Shift 자모는 위),
+    /// 숫자·기호 키는 Shift 글자 위 + 기본 글자 아래, 특수키는 가운데 한 줄.
+    private func drawLabels(of key: KeyboardLayout.Key, in context: CGContext) {
+        let f = key.frame
+        if let korean = key.koreanValue {
+            drawText(key.label, centeredAt: PaperPoint(x: f.minX + 4.5, y: f.minY + 5.5), fontSize: 6, gray: 0.2, in: context)
+            drawText(korean, centeredAt: PaperPoint(x: f.maxX - 4, y: f.maxY - 4), fontSize: 4.2, gray: 0.35, in: context)
+            if let shifted = key.koreanShiftValue, shifted != korean {
+                drawText(shifted, centeredAt: PaperPoint(x: f.maxX - 4, y: f.minY + 4.5), fontSize: 3.4, gray: 0.35, in: context)
+            }
+        } else if key.kind == .char, let shifted = key.shiftValue, shifted != key.value?.uppercased() {
+            drawText(shifted, centeredAt: PaperPoint(x: f.center.x, y: f.minY + 5), fontSize: 4.2, gray: 0.3, in: context)
+            drawText(key.label, centeredAt: PaperPoint(x: f.center.x, y: f.maxY - 5), fontSize: 5, gray: 0.2, in: context)
+        } else if !key.label.isEmpty {
+            let size = key.kind == .cursorLeft || key.kind == .cursorRight || key.kind == .char ? 5.5 : 3.6
+            drawText(key.label, centeredAt: f.center, fontSize: size, gray: 0.25, in: context)
         }
     }
 

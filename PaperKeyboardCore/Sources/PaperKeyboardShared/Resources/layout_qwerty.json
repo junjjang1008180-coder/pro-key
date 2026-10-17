@@ -1,43 +1,75 @@
 {
-  "name": "qwerty-a4-landscape",
+  "name": "qwerty-ko-a4-landscape",
   "version": 1,
   "paper": { "width": 297, "height": 210 },
   "markers": { "size": 15, "inset": 10, "holeSize": 7 },
-  "keyPitch": 19,
-  "keySize": 17,
+  "keyPitch": 18,
+  "keySize": 16,
   "rows": [
     {
-      "x": 39.25,
-      "y": 67,
+      "x": 13.5,
+      "y": 60,
       "keys": [
-        { "value": "q" }, { "value": "w" }, { "value": "e" }, { "value": "r" }, { "value": "t" },
-        { "value": "y" }, { "value": "u" }, { "value": "i" }, { "value": "o" }, { "value": "p" },
-        { "kind": "backspace", "units": 1.5 }
+        { "value": "`", "shift": "~" },
+        { "value": "1", "shift": "!" }, { "value": "2", "shift": "@" }, { "value": "3", "shift": "#" },
+        { "value": "4", "shift": "$" }, { "value": "5", "shift": "%" }, { "value": "6", "shift": "^" },
+        { "value": "7", "shift": "&" }, { "value": "8", "shift": "*" }, { "value": "9", "shift": "(" },
+        { "value": "0", "shift": ")" }, { "value": "-", "shift": "_" }, { "value": "=", "shift": "+" },
+        { "kind": "backspace", "units": 2 }
       ]
     },
     {
-      "x": 44,
-      "y": 86,
+      "x": 13.5,
+      "y": 78,
       "keys": [
-        { "value": "a" }, { "value": "s" }, { "value": "d" }, { "value": "f" }, { "value": "g" },
-        { "value": "h" }, { "value": "j" }, { "value": "k" }, { "value": "l" },
-        { "kind": "enter", "units": 1.75 }
+        { "kind": "tab", "units": 1.5 },
+        { "value": "q", "ko": "ㅂ", "koShift": "ㅃ" }, { "value": "w", "ko": "ㅈ", "koShift": "ㅉ" },
+        { "value": "e", "ko": "ㄷ", "koShift": "ㄸ" }, { "value": "r", "ko": "ㄱ", "koShift": "ㄲ" },
+        { "value": "t", "ko": "ㅅ", "koShift": "ㅆ" }, { "value": "y", "ko": "ㅛ" },
+        { "value": "u", "ko": "ㅕ" }, { "value": "i", "ko": "ㅑ" },
+        { "value": "o", "ko": "ㅐ", "koShift": "ㅒ" }, { "value": "p", "ko": "ㅔ", "koShift": "ㅖ" },
+        { "value": "[", "shift": "{" }, { "value": "]", "shift": "}" },
+        { "value": "\\", "shift": "|", "units": 1.5 }
       ]
     },
     {
-      "x": 39.25,
-      "y": 105,
+      "x": 13.5,
+      "y": 96,
       "keys": [
-        { "kind": "shift", "units": 1.5 },
-        { "value": "z" }, { "value": "x" }, { "value": "c" }, { "value": "v" }, { "value": "b" },
-        { "value": "n" }, { "value": "m" }, { "value": "," }, { "value": "." }
+        { "kind": "capsLock", "units": 1.75 },
+        { "value": "a", "ko": "ㅁ" }, { "value": "s", "ko": "ㄴ" }, { "value": "d", "ko": "ㅇ" },
+        { "value": "f", "ko": "ㄹ" }, { "value": "g", "ko": "ㅎ" }, { "value": "h", "ko": "ㅗ" },
+        { "value": "j", "ko": "ㅓ" }, { "value": "k", "ko": "ㅏ" }, { "value": "l", "ko": "ㅣ" },
+        { "value": ";", "shift": ":" }, { "value": "'", "shift": "\"" },
+        { "kind": "enter", "units": 2.25 }
       ]
     },
     {
-      "x": 91.5,
-      "y": 124,
+      "x": 13.5,
+      "y": 114,
       "keys": [
-        { "kind": "space", "units": 6 }
+        { "kind": "shift", "units": 2.25 },
+        { "value": "z", "ko": "ㅋ" }, { "value": "x", "ko": "ㅌ" }, { "value": "c", "ko": "ㅊ" },
+        { "value": "v", "ko": "ㅍ" }, { "value": "b", "ko": "ㅠ" }, { "value": "n", "ko": "ㅜ" },
+        { "value": "m", "ko": "ㅡ" },
+        { "value": ",", "shift": "<" }, { "value": ".", "shift": ">" }, { "value": "/", "shift": "?" },
+        { "kind": "shift", "id": "shiftRight", "units": 2.75 }
+      ]
+    },
+    {
+      "x": 85.5,
+      "y": 132,
+      "keys": [
+        { "kind": "space", "units": 6 },
+        { "kind": "languageToggle", "units": 1.5 }
+      ]
+    },
+    {
+      "x": 247.5,
+      "y": 132,
+      "keys": [
+        { "kind": "cursorLeft" },
+        { "kind": "cursorRight" }
       ]
     }
   ]

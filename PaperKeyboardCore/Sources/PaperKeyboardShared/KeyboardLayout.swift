@@ -4,12 +4,19 @@ import Foundation
 /// 인쇄용 PDF와 인식 시 키 영역 계산이 모두 이 값을 쓴다. 좌표를 코드에 따로 적지 말 것.
 public struct KeyboardLayout: Sendable {
     public struct Key: Equatable, Sendable {
-        /// 글자 키는 글자 자체, 특수키는 종류 이름 (`space`, `enter` 등).
+        /// 글자 키는 글자 자체, 특수키는 종류 이름 (`space`, `enter` 등). 같은 종류가 둘이면 JSON의 `id`.
         public let id: String
         /// 종이에 인쇄할 글자.
         public let label: String
         public let kind: KeyKind
+        /// 영어 모드 기본 글자.
         public let value: String?
+        /// 영어 모드에서 Shift를 눌렀을 때 글자. 영문자는 대문자.
+        public let shiftValue: String?
+        /// 한글 모드 자모 (두벌식). 한글 자리가 없는 키(숫자·기호)는 nil이고, 한글 모드에서도 영어 값을 쓴다.
+        public let koreanValue: String?
+        /// 한글 모드에서 Shift를 눌렀을 때 자모 (ㅃ 등). 없으면 `koreanValue`.
+        public let koreanShiftValue: String?
         public let frame: PaperRect
     }
 
@@ -145,22 +152,44 @@ extension KeyboardLayout {
         let kind = spec.kind ?? .char
         switch kind {
         case .char:
-            guard let value = spec.value, !value.isEmpty else {
-                throw LayoutError.invalidKey("글자 키에 value가 없음")
+            guard let value = spec.value, value.count == 1 else {
+                throw LayoutError.invalidKey("글자 키 value는 한 글자여야 함: \(spec.value ?? "없음")")
             }
-            return Key(id: value, label: spec.label ?? value.uppercased(), kind: .char, value: value, frame: frame)
-        case .space, .enter, .backspace, .shift:
-            return Key(id: kind.rawValue, label: spec.label ?? defaultLabel(kind), kind: kind, value: nil, frame: frame)
+            let isLetter = value.lowercased() != value.uppercased()
+            let shiftValue = spec.shift ?? (isLetter ? value.uppercased() : nil)
+            guard shiftValue.map({ $0.count == 1 }) ?? true else {
+                throw LayoutError.invalidKey("\(value): shift는 한 글자여야 함")
+            }
+            for jamo in [spec.ko, spec.koShift].compactMap({ $0 }) where !HangulComposer.isJamo(jamo) {
+                throw LayoutError.invalidKey("\(value): 한글 값은 자모 한 글자여야 함 (\(jamo))")
+            }
+            guard spec.koShift == nil || spec.ko != nil else {
+                throw LayoutError.invalidKey("\(value): koShift만 있고 ko가 없음")
+            }
+            return Key(
+                id: spec.id ?? value, label: spec.label ?? value.uppercased(), kind: .char,
+                value: value, shiftValue: shiftValue, koreanValue: spec.ko, koreanShiftValue: spec.koShift, frame: frame
+            )
+        default:
+            return Key(
+                id: spec.id ?? kind.rawValue, label: spec.label ?? defaultLabel(kind), kind: kind,
+                value: nil, shiftValue: nil, koreanValue: nil, koreanShiftValue: nil, frame: frame
+            )
         }
     }
 
     private static func defaultLabel(_ kind: KeyKind) -> String {
         switch kind {
         case .char: ""
-        case .space: "space"
-        case .enter: "⏎"
-        case .backspace: "⌫"
-        case .shift: "⇧"
+        case .space: ""
+        case .enter: "Enter ⏎"
+        case .backspace: "⌫ Backspace"
+        case .tab: "Tab ⇥"
+        case .cursorLeft: "←"
+        case .cursorRight: "→"
+        case .shift: "⇧ Shift"
+        case .capsLock: "Caps Lock"
+        case .languageToggle: "한/영"
         }
     }
 
@@ -172,9 +201,14 @@ extension KeyboardLayout {
         /// x, y: 행의 첫 칸 왼쪽 위.
         struct Row: Decodable { let x: Double; let y: Double; let keys: [KeySpec] }
         /// kind 생략 시 글자 키. units: 키 폭 배수 (기본 1).
+        /// shift: Shift 글자 (영문자는 생략하면 대문자), ko/koShift: 두벌식 자모, id: 같은 종류 특수키가 둘일 때 구분용.
         struct KeySpec: Decodable {
             let kind: KeyKind?
+            let id: String?
             let value: String?
+            let shift: String?
+            let ko: String?
+            let koShift: String?
             let label: String?
             let units: Double?
         }
