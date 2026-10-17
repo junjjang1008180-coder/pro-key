@@ -1,8 +1,8 @@
 import Foundation
 
-/// 눌린 종이 키를 실제로 보낼 입력으로 바꾼다. Shift(한 번), Caps Lock, 한/영 상태를 여기서만 관리한다.
+/// 눌린 종이 키를 실제로 보낼 입력으로 바꾼다. Shift(한 번), 한/영 상태를 여기서만 관리한다.
 /// 메인 앱이 `PressDetector`가 확정한 키마다 부르고, 결과를 이벤트 채널에 쓴다.
-/// 수식 키(Shift, Caps Lock, 한/영)는 상태만 바꾸고 아무것도 내보내지 않는다.
+/// 수식 키(Shift, 한/영)는 상태만 바꾸고 아무것도 내보내지 않는다. Ctrl, Alt는 지금은 아무 동작도 하지 않는다.
 public struct KeyInputResolver: Sendable {
     public enum Language: String, Sendable {
         case english
@@ -24,7 +24,6 @@ public struct KeyInputResolver: Sendable {
     public private(set) var language: Language = .english
     /// 다음 글자 하나에만 적용되는 Shift.
     public private(set) var isShiftArmed = false
-    public private(set) var isCapsLockOn = false
 
     public init() {}
 
@@ -33,11 +32,11 @@ public struct KeyInputResolver: Sendable {
         case .shift:
             isShiftArmed.toggle()
             return nil
-        case .capsLock:
-            isCapsLockOn.toggle()
-            return nil
         case .languageToggle:
             language = language == .english ? .korean : .english
+            return nil
+        case .control, .alt:
+            // iPad에서는 다른 앱에 단축키를 보낼 수 없어 동작 없음. Shift 상태도 건드리지 않는다.
             return nil
         case .char:
             defer { isShiftArmed = false }
@@ -51,13 +50,10 @@ public struct KeyInputResolver: Sendable {
 
     private func character(for key: KeyboardLayout.Key) -> String? {
         if language == .korean, let korean = key.koreanValue {
-            // Caps Lock은 한글에 영향 없음. Shift는 쌍자음/ㅒㅖ.
+            // Shift는 쌍자음/ㅒㅖ.
             return isShiftArmed ? (key.koreanShiftValue ?? korean) : korean
         }
         guard let value = key.value else { return nil }
-        let isLetter = value.lowercased() != value.uppercased()
-        // 영문자: Shift와 Caps Lock 중 하나만 켜져 있으면 대문자. 숫자·기호는 Shift만 본다.
-        let shifted = isLetter ? (isShiftArmed != isCapsLockOn) : isShiftArmed
-        return shifted ? (key.shiftValue ?? value) : value
+        return isShiftArmed ? (key.shiftValue ?? value) : value
     }
 }

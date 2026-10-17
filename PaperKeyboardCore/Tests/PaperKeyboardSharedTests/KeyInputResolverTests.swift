@@ -39,9 +39,9 @@ struct KeyInputResolverTests {
         #expect(Self.press(["shift", "1", "1", "shift", "/", "shift", "'"], resolver: &r) == ["!", "1", "?", "\""])
     }
 
-    @Test func CapsLock은_영문자만_대문자로_하고_Shift와_만나면_소문자() {
+    @Test func Ctrl과_Alt는_아무것도_하지_않고_Shift도_그대로_둔다() {
         var r = KeyInputResolver()
-        #expect(Self.press(["capsLock", "a", "1", "shift", "b", "capsLock", "c"], resolver: &r) == ["A", "1", "b", "c"])
+        #expect(Self.press(["shift", "control", "alt", "a"], resolver: &r) == ["A"])
     }
 
     @Test func 한영_전환_후에는_두벌식_자모() {
@@ -61,14 +61,9 @@ struct KeyInputResolverTests {
         #expect(Self.press(["languageToggle", "1", "shift", "1", "."], resolver: &r) == ["1", "!", "."])
     }
 
-    @Test func 한글_모드에서_CapsLock은_영향이_없다() {
-        var r = KeyInputResolver()
-        #expect(Self.press(["languageToggle", "capsLock", "q"], resolver: &r) == ["ㅂ"])
-    }
-
     @Test func 수식키는_아무것도_내보내지_않고_나머지_특수키는_종류로_나간다() {
         var r = KeyInputResolver()
-        for id in ["shift", "shiftRight", "capsLock", "languageToggle"] {
+        for id in ["shift", "shiftRight", "languageToggle", "control", "alt"] {
             #expect(r.resolve(Self.key(id)) == nil, "\(id)")
         }
         for kind in [KeyKind.space, .enter, .backspace, .tab] {

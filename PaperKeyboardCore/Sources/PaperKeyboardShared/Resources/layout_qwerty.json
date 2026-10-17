@@ -33,10 +33,9 @@
       ]
     },
     {
-      "x": 13.5,
+      "x": 45,
       "y": 96,
       "keys": [
-        { "kind": "capsLock", "units": 1.75 },
         { "value": "a", "ko": "ㅁ" }, { "value": "s", "ko": "ㄴ" }, { "value": "d", "ko": "ㅇ" },
         { "value": "f", "ko": "ㄹ" }, { "value": "g", "ko": "ㅎ" }, { "value": "h", "ko": "ㅗ" },
         { "value": "j", "ko": "ㅓ" }, { "value": "k", "ko": "ㅏ" }, { "value": "l", "ko": "ㅣ" },
@@ -57,9 +56,11 @@
       ]
     },
     {
-      "x": 85.5,
+      "x": 13.5,
       "y": 132,
       "keys": [
+        { "kind": "control", "units": 2 },
+        { "kind": "alt", "units": 2 },
         { "kind": "space", "units": 6 },
         { "kind": "languageToggle", "units": 1.5 }
       ]

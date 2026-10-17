@@ -1,7 +1,7 @@
 import Foundation
 
 /// 키 종류. 레이아웃 정의 파일과 이벤트 포맷이 같은 이름을 쓴다.
-/// `shift`, `capsLock`, `languageToggle`은 상태만 바꾸는 키라 메인 앱(`KeyInputResolver`)에서 처리하고
+/// `shift`, `languageToggle`, `control`, `alt`는 글자를 내지 않는 키라 메인 앱(`KeyInputResolver`)에서 처리하고
 /// 이벤트로는 보내지 않는다. 키보드 확장이 받는 것은 나머지 종류뿐이다.
 public enum KeyKind: String, Codable, Sendable, CaseIterable {
     case char
@@ -10,14 +10,16 @@ public enum KeyKind: String, Codable, Sendable, CaseIterable {
     case backspace
     case tab
     case shift
-    case capsLock
     /// 한/영 전환.
     case languageToggle
+    /// Ctrl, Alt: 사용자 요청으로 종이에 인쇄하지만, iPad 서드파티 키보드는 다른 앱에 단축키를 보낼 수 없어 지금은 동작이 없다.
+    case control
+    case alt
 
     /// 상태만 바꾸고 글자를 내보내지 않는 키.
     public var isModifier: Bool {
         switch self {
-        case .shift, .capsLock, .languageToggle: true
+        case .shift, .languageToggle, .control, .alt: true
         default: false
         }
     }

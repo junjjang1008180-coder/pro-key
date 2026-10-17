@@ -186,8 +186,9 @@ extension KeyboardLayout {
         case .backspace: "⌫ Backspace"
         case .tab: "Tab ⇥"
         case .shift: "⇧ Shift"
-        case .capsLock: "Caps Lock"
         case .languageToggle: "한/영"
+        case .control: "Ctrl"
+        case .alt: "Alt"
         }
     }
 
