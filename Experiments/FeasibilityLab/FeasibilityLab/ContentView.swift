@@ -44,6 +44,10 @@ struct ContentView: View {
                         }
                     }
                     .pickerStyle(.segmented)
+                    // 카메라가 켜져 있으면 고르는 즉시 그 카메라로 바꾼다.
+                    .onChange(of: camera.selectedCameraID) { _, _ in
+                        if camera.isRunning { camera.start() }
+                    }
                 }
 
                 HStack {

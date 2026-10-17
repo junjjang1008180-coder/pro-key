@@ -1,7 +1,7 @@
 import AVFoundation
 import UIKit
 
-/// 실험 1, 3용 전면 카메라 캡처.
+/// 실험 1, 3용 카메라 캡처. 전면 카메라와 USB로 꽂은 외부 웹캠(iPadOS 17+) 중에서 고른다.
 /// 프레임은 개수만 세고 바로 버린다 (저장/전송 없음).
 final class CameraLab: NSObject, ObservableObject {
     struct CameraOption: Identifiable, Hashable {
@@ -40,17 +40,12 @@ final class CameraLab: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        let discovery = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTrueDepthCamera],
-            mediaType: .video,
-            position: .front
-        )
-        cameras = discovery.devices.map { CameraOption(id: $0.uniqueID, name: $0.localizedName) }
-        // 화각이 넓을수록 종이와 손이 함께 들어올 가능성이 높으므로 초광각을 먼저 고른다.
-        selectedCameraID = (discovery.devices.first { $0.deviceType == .builtInUltraWideCamera } ?? discovery.devices.first)?.uniqueID
-        if cameras.isEmpty { addLog("전면 카메라를 찾지 못함 (시뮬레이터에는 카메라가 없음)") }
+        refreshCameras()
+        if cameras.isEmpty { addLog("카메라를 찾지 못함 (시뮬레이터에는 카메라가 없음)") }
 
         let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(deviceConnectionChanged), name: AVCaptureDevice.wasConnectedNotification, object: nil)
+        center.addObserver(self, selector: #selector(deviceConnectionChanged), name: AVCaptureDevice.wasDisconnectedNotification, object: nil)
         center.addObserver(self, selector: #selector(sessionInterrupted), name: AVCaptureSession.wasInterruptedNotification, object: session)
         center.addObserver(self, selector: #selector(interruptionEnded), name: AVCaptureSession.interruptionEndedNotification, object: session)
         center.addObserver(self, selector: #selector(runtimeError), name: AVCaptureSession.runtimeErrorNotification, object: session)
@@ -93,6 +88,22 @@ final class CameraLab: NSObject, ObservableObject {
         }
     }
 
+    /// 전면 카메라 + 외부 웹캠 목록을 다시 읽는다. 고른 카메라가 사라졌으면 기본 카메라로 돌아간다.
+    private func refreshCameras() {
+        let front = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInUltraWideCamera, .builtInWideAngleCamera, .builtInTrueDepthCamera],
+            mediaType: .video,
+            position: .front
+        ).devices
+        let external = AVCaptureDevice.DiscoverySession(deviceTypes: [.external], mediaType: .video, position: .unspecified).devices
+        cameras = front.map { CameraOption(id: $0.uniqueID, name: $0.localizedName) }
+            + external.map { CameraOption(id: $0.uniqueID, name: "웹캠: \($0.localizedName)") }
+
+        if let selectedCameraID, cameras.contains(where: { $0.id == selectedCameraID }) { return }
+        // 화각이 넓을수록 종이와 손이 함께 들어올 가능성이 높으므로 초광각을 먼저 고른다.
+        selectedCameraID = (front.first { $0.deviceType == .builtInUltraWideCamera } ?? front.first ?? external.first)?.uniqueID
+    }
+
     func addLog(_ message: String) {
         log.insert("[\(LabShared.timestamp())] \(message)", at: 0)
         // 창 크기를 계속 바꾸면 기록이 끝없이 쌓이므로 최근 것만 남긴다.
@@ -103,7 +114,7 @@ final class CameraLab: NSObject, ObservableObject {
         let selectedID = selectedCameraID
         sessionQueue.async {
             guard let device = selectedID.flatMap(AVCaptureDevice.init(uniqueID:)) else {
-                DispatchQueue.main.async { self.addLog("사용할 전면 카메라가 없음") }
+                DispatchQueue.main.async { self.addLog("❌ 고른 카메라를 찾을 수 없음 (분리됐을 수 있음)") }
                 return
             }
 
@@ -112,10 +123,9 @@ final class CameraLab: NSObject, ObservableObject {
             AVCaptureDevice.isCenterStageEnabled = false
 
             self.session.beginConfiguration()
-            if self.session.canSetSessionPreset(.hd1920x1080) {
-                self.session.sessionPreset = .hd1920x1080
-            }
             self.session.inputs.forEach { self.session.removeInput($0) }
+            // 앞 카메라의 1080p 설정이 남아 있으면 그걸 못 하는 웹캠은 붙지 않으므로, 먼저 공통 설정으로 내린다.
+            self.session.sessionPreset = .high
 
             let input: AVCaptureDeviceInput
             do {
@@ -131,6 +141,8 @@ final class CameraLab: NSObject, ObservableObject {
                 return
             }
             self.session.addInput(input)
+            // 웹캠은 1080p를 못 할 수도 있으므로, 카메라를 붙인 뒤에 되는 해상도를 고른다.
+            self.session.sessionPreset = self.session.canSetSessionPreset(.hd1920x1080) ? .hd1920x1080 : .high
 
             if !self.session.outputs.contains(self.videoOutput) {
                 self.videoOutput.alwaysDiscardsLateVideoFrames = true
@@ -207,6 +219,17 @@ final class CameraLab: NSObject, ObservableObject {
             .flatMap(AVCaptureSession.InterruptionReason.init(rawValue:))
             .map(Self.describe) ?? "알 수 없음"
         DispatchQueue.main.async { self.addLog("⚠️ 카메라 중단: \(reasonText)") }
+    }
+
+    /// 웹캠을 꽂거나 뽑으면 목록을 새로 읽는다.
+    @objc private func deviceConnectionChanged(_ notification: Notification) {
+        guard let device = notification.object as? AVCaptureDevice, device.hasMediaType(.video) else { return }
+        let connected = notification.name == AVCaptureDevice.wasConnectedNotification
+        let name = device.localizedName
+        DispatchQueue.main.async {
+            self.refreshCameras()
+            self.addLog(connected ? "카메라 연결됨: \(name)" : "⚠️ 카메라 분리됨: \(name)")
+        }
     }
 
     @objc private func interruptionEnded(_ notification: Notification) {
