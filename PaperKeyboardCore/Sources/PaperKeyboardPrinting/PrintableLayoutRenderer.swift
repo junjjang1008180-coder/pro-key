@@ -57,7 +57,6 @@ public struct PrintableLayoutRenderer: Sendable {
 
         drawMarkers(in: context)
         drawKeys(in: context)
-        drawCaption(in: context)
     }
 
     // MARK: - 그리기 부품
@@ -100,15 +99,6 @@ public struct PrintableLayoutRenderer: Sendable {
             let size = key.kind == .char ? 5.5 : 3.6
             drawText(key.label, centeredAt: f.center, fontSize: size, gray: 0.25, in: context)
         }
-    }
-
-    private func drawCaption(in context: CGContext) {
-        let top = layout.markerCenters.topLeft.y
-        drawText(
-            "종이 키보드 · \(layout.name) · 실제 크기(100%)로 인쇄 · 구멍 난 마커가 왼쪽 위",
-            centeredAt: PaperPoint(x: layout.paperWidth / 2, y: top),
-            fontSize: 3.5, gray: 0.45, in: context
-        )
     }
 
     /// 글자 하나 줄을 가운데 맞춰 그린다. 기호(⌫ 등)는 CoreText가 맞는 글꼴로 대체한다.
