@@ -23,7 +23,7 @@
 ## 2. 모듈
 | 모듈 | 위치 | 역할 |
 |---|---|---|
-| `CameraService` | 메인 앱 | 전면 카메라 캡처, 프레임 드롭 허용, 멀티태스킹 카메라 활성화 시도, 중단(interruption) 처리 |
+| `CameraService` | 메인 앱 | 카메라 캡처 (USB 웹캠이 있으면 웹캠, 없으면 전면 초광각), 웹캠 연결/분리 처리, 프레임 드롭 허용, 멀티태스킹 카메라 활성화 시도, 중단(interruption) 처리 |
 | `KeyboardLayout` | Shared | JSON(mm 단위) 레이아웃 로드, 키 영역/마커 위치 제공 |
 | `PrintableLayoutRenderer` | 코어 패키지 (`PaperKeyboardPrinting`) | 같은 레이아웃으로 인쇄용 PDF 생성. 메인 앱만 링크 |
 | `PaperKeyboardDetector` | 메인 앱 | 카메라 프레임 → `MarkerDetector` → `CalibrationLock`을 잇는 얇은 층 (아래 5절) |
