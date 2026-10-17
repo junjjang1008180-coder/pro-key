@@ -4,7 +4,8 @@ import PaperKeyboardRecognition
 import PaperKeyboardShared
 import QuartzCore
 
-/// 카메라 프레임 → 마커 검출(`MarkerDetector`) → 보정 고정(`CalibrationLock`).
+/// 인식 파이프라인: 카메라 프레임 → 마커 검출(`MarkerDetector`) → 보정 고정(`CalibrationLock`)
+/// → (고정된 뒤) 손끝 추적(`FingertipTracker`) → 종이 좌표 + 스무딩 → 손끝이 올라간 키.
 /// `process`는 카메라의 `videoQueue`에서만 부른다. 결과는 `onSnapshot`으로 내보낸다 (같은 큐, 초당 약 15번).
 final class PaperKeyboardDetector {
     /// 화면 표시용 결과. 좌표는 모두 원본 카메라 버퍼의 픽셀.
@@ -19,8 +20,21 @@ final class PaperKeyboardDetector {
         /// 고정된 픽셀 ↔ 종이 변환.
         var mapping: PaperMapping?
         var detectionMilliseconds = 0.0
-        /// 영상을 읽지 못하는 등 검출을 아예 못 한 이유.
+        /// 검지 손끝. 신뢰도가 낮으면 `paper`가 nil (화면에 회색으로 표시).
+        var fingertip: Fingertip?
+        /// 손끝이 올라가 있는 키.
+        var hoveredKeyID: String?
+        var handMilliseconds = 0.0
+        /// 영상을 읽지 못하는 등 인식을 못 한 이유.
         var problem: String?
+    }
+
+    struct Fingertip {
+        /// 원본 버퍼 픽셀 (스무딩한 종이 좌표를 되돌린 값).
+        var pixel: PixelPoint
+        /// 스무딩한 종이 좌표 (mm). 신뢰도가 낮은 프레임은 nil.
+        var paper: PaperPoint?
+        var confidence: Double
     }
 
     let layout: KeyboardLayout
@@ -29,6 +43,8 @@ final class PaperKeyboardDetector {
     private let settings: RecognitionSettings
     private let detector: MarkerDetector
     private var calibration: CalibrationLock
+    private let tracker = FingertipTracker()
+    private var smoother: FingertipSmoother
     private var frameIndex = 0
     private var lastPublishTime = 0.0
     private var lastPublishedState: CalibrationLock.State?
@@ -43,6 +59,7 @@ final class PaperKeyboardDetector {
         self.settings = settings
         self.detector = MarkerDetector(layout: layout, settings: settings)
         self.calibration = CalibrationLock(markerPaper: layout.markerCenters, settings: settings)
+        self.smoother = FingertipSmoother(settings: settings)
     }
 
     /// 재보정: 다음 프레임부터 종이를 처음부터 다시 찾는다. 아무 스레드에서나 불러도 된다.
@@ -57,16 +74,36 @@ final class PaperKeyboardDetector {
         let reset = resetRequested
         resetRequested = false
         resetLock.unlock()
-        if reset { calibration.reset() }
+        if reset {
+            calibration.reset()
+            smoother.reset()
+        }
 
         frameIndex += 1
-        if calibration.state == .locked, frameIndex % settings.lockedDetectionInterval != 0 { return }
+        last.imageSize = PixelSize(width: Double(CVPixelBufferGetWidth(buffer)), height: Double(CVPixelBufferGetHeight(buffer)))
+        last.problem = nil
 
+        // 1) 마커: 고정 전에는 매 프레임, 고정 뒤에는 밀림 확인용으로 몇 프레임에 한 번.
+        if calibration.state != .locked || frameIndex % settings.lockedDetectionInterval == 0 {
+            guard detectMarkers(in: buffer) else {
+                publish(force: false)
+                return
+            }
+        }
+        last.lockState = calibration.state
+        last.mapping = calibration.mapping
+
+        // 2) 손끝: 종이 좌표로 바꿀 변환이 있을 때만.
+        trackFingertip(in: buffer)
+        publish(force: calibration.state != lastPublishedState)
+    }
+
+    /// 영상을 읽지 못하면 false.
+    private func detectMarkers(in buffer: CVPixelBuffer) -> Bool {
         let start = CACurrentMediaTime()
         guard let (image, step) = Self.grayImage(from: buffer, targetWidth: settings.detectionImageWidth) else {
             last.problem = "카메라 영상 형식을 읽을 수 없음 (\(CVPixelBufferGetPixelFormatType(buffer)))"
-            publish(force: false)
-            return
+            return false
         }
         let detection = detector.detect(in: image)
         // 줄인 이미지 좌표 × step = 원본 버퍼 좌표
@@ -75,16 +112,48 @@ final class PaperKeyboardDetector {
         let markers = detection.markers?.map(toOriginal)
         calibration.update(markers: markers)
 
-        last = Snapshot(
-            imageSize: PixelSize(width: Double(CVPixelBufferGetWidth(buffer)), height: Double(CVPixelBufferGetHeight(buffer))),
-            candidates: detection.candidates.map { toOriginal($0.center) },
-            markers: markers,
-            failure: { if case .failure(let failure) = detection.result { return failure } else { return nil } }(),
-            lockState: calibration.state,
-            mapping: calibration.mapping,
-            detectionMilliseconds: (CACurrentMediaTime() - start) * 1000
-        )
-        publish(force: calibration.state != lastPublishedState)
+        last.candidates = detection.candidates.map { toOriginal($0.center) }
+        last.markers = markers
+        if case .failure(let failure) = detection.result { last.failure = failure } else { last.failure = nil }
+        last.detectionMilliseconds = (CACurrentMediaTime() - start) * 1000
+        return true
+    }
+
+    private func trackFingertip(in buffer: CVPixelBuffer) {
+        guard let mapping = calibration.mapping else {
+            last.fingertip = nil
+            last.hoveredKeyID = nil
+            smoother.reset()
+            return
+        }
+        // 맞은편 웹캠이면 180°: Vision에 손이 바로 선 모습으로 넘긴다.
+        let rotation = mapping.uprightRotationDegrees(paperWidth: layout.paperWidth, paperHeight: layout.paperHeight) ?? 0
+        let start = CACurrentMediaTime()
+        let result: FingertipTracker.Result?
+        do {
+            result = try tracker.detect(in: buffer, uprightRotation: rotation)
+        } catch {
+            last.problem = "손 인식 오류: \(error.localizedDescription)"
+            return
+        }
+        last.handMilliseconds = (CACurrentMediaTime() - start) * 1000
+
+        guard let result else {
+            // 손이 안 보임
+            last.fingertip = nil
+            last.hoveredKeyID = nil
+            smoother.reset()
+            return
+        }
+        guard result.confidence >= settings.minConfidence, let paper = mapping.paper(fromPixel: result.pixel) else {
+            // 신뢰도가 낮은 프레임: 손이 사라진 것과 구분해, 위치만 회색으로 보여 주고 키 판단은 하지 않는다.
+            last.fingertip = Fingertip(pixel: result.pixel, paper: nil, confidence: result.confidence)
+            last.hoveredKeyID = nil
+            return
+        }
+        let smoothed = smoother.smooth(paper, at: CACurrentMediaTime())
+        last.fingertip = Fingertip(pixel: mapping.pixel(fromPaper: smoothed) ?? result.pixel, paper: smoothed, confidence: result.confidence)
+        last.hoveredKeyID = layout.key(at: smoothed)?.id
     }
 
     /// 상태가 바뀌면 바로, 아니면 초당 15번 정도만 화면에 보낸다.

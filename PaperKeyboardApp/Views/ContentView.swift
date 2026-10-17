@@ -56,7 +56,13 @@ struct ContentView: View {
         case .stabilizing(let frames, let required):
             return ("종이를 찾았어요 · 움직이지 마세요 (\(frames)/\(required))", .blue)
         case .locked:
-            return ("✅ 종이 위치 고정됨 · 손을 올려도 됩니다", .green)
+            if let id = model.snapshot.hoveredKeyID, let key = model.layout.key(withID: id) {
+                return ("✅ 손끝 위치: \(key.kind == .space ? "Space" : key.label) 키", .green)
+            }
+            if model.snapshot.fingertip != nil {
+                return ("✅ 손이 보여요 · 검지를 키 위에 올려 보세요", .green)
+            }
+            return ("✅ 종이 위치 고정됨 · 검지를 키 위에 올려 보세요", .green)
         case .needsRecalibration:
             return ("⚠️ 종이가 움직인 것 같아요 · [재보정]을 눌러 주세요", .orange)
         }
@@ -99,6 +105,8 @@ struct ContentView: View {
     private var infoText: String {
         let status = camera.status
         let multitasking = status.multitaskingSupported ? "멀티태스킹 지원" : "멀티태스킹 미지원"
-        return "\(status.resolution) · \(String(format: "%.0f", status.fps))fps · 검출 \(String(format: "%.1f", model.snapshot.detectionMilliseconds))ms · \(multitasking)"
+        let snapshot = model.snapshot
+        let confidence = snapshot.fingertip.map { String(format: " · 손끝 신뢰도 %.2f", $0.confidence) } ?? ""
+        return "\(status.resolution) · \(String(format: "%.0f", status.fps))fps · 종이 \(String(format: "%.1f", snapshot.detectionMilliseconds))ms · 손 \(String(format: "%.1f", snapshot.handMilliseconds))ms\(confidence) · \(multitasking)"
     }
 }

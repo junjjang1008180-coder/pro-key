@@ -30,6 +30,39 @@ struct CoordinateMapperTests {
         #expect(abs(back.y - original.y) < 1e-12)
     }
 
+    @Test func 돌리지_않으면_기존_변환과_같다() {
+        let point = NormalizedPoint(x: 0.25, y: 0.75)
+        #expect(CoordinateMapper.pixel(fromVision: point, imageSize: Self.imageSize, uprightRotation: 0)
+            == CoordinateMapper.pixel(fromVision: point, imageSize: Self.imageSize))
+    }
+
+    /// 원본 버퍼의 왼쪽 위 모서리(0, 0)가 돌린 이미지(Vision 좌표, 원점 왼쪽 아래)에서 어디로 가는지.
+    @Test(arguments: [
+        (90.0, NormalizedPoint(x: 1, y: 1)),    // 시계 방향 90°: 왼쪽 위 → 오른쪽 위
+        (180.0, NormalizedPoint(x: 1, y: 0)),   // 180°: 왼쪽 위 → 오른쪽 아래
+        (270.0, NormalizedPoint(x: 0, y: 0)),   // 270°: 왼쪽 위 → 왼쪽 아래
+    ])
+    func 돌린_이미지의_모서리가_원본_왼쪽_위로_돌아온다(rotation: Double, cornerInVision: NormalizedPoint) {
+        let pixel = CoordinateMapper.pixel(fromVision: cornerInVision, imageSize: Self.imageSize, uprightRotation: rotation)
+        #expect(abs(pixel.x) < 1e-9 && abs(pixel.y) < 1e-9, "\(rotation)°: \(pixel)")
+    }
+
+    @Test(arguments: [0.0, 90.0, 180.0, 270.0])
+    func 돌린_Vision_좌표와_원본_픽셀_왕복(rotation: Double) {
+        for original in [PixelPoint(x: 300, y: 200), PixelPoint(x: 1919, y: 5), PixelPoint(x: 960, y: 1079)] {
+            let vision = CoordinateMapper.vision(fromPixel: original, imageSize: Self.imageSize, uprightRotation: rotation)
+            #expect((0...1).contains(vision.x) && (0...1).contains(vision.y), "\(rotation)°: 범위 밖 \(vision)")
+            let back = CoordinateMapper.pixel(fromVision: vision, imageSize: Self.imageSize, uprightRotation: rotation)
+            #expect(abs(back.x - original.x) < 1e-9 && abs(back.y - original.y) < 1e-9, "\(rotation)°: \(original) → \(back)")
+        }
+    }
+
+    @Test func 맞은편_웹캠처럼_180도_돌리면_화면_가운데_아래가_원본_가운데_위() {
+        // 돌린 이미지(사용자 시점)의 아래쪽 가운데 = 사용자 쪽 = 원본 버퍼의 위쪽 가운데
+        let pixel = CoordinateMapper.pixel(fromVision: NormalizedPoint(x: 0.5, y: 0), imageSize: Self.imageSize, uprightRotation: 180)
+        #expect(pixel == PixelPoint(x: 960, y: 0))
+    }
+
     @Test func 화면용_미러링은_x만_뒤집고_두_번_하면_원래대로() {
         let point = PixelPoint(x: 300, y: 200)
         let mirrored = CoordinateMapper.mirroredForDisplay(point, imageSize: Self.imageSize)

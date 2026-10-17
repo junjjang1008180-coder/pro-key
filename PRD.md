@@ -170,3 +170,10 @@
 - 확인된 사실: 웹캠 프리뷰의 좌우 반전은 화면 표시만의 문제였고, 인식용 버퍼는 반전되지 않았다 (키 테두리가 인쇄물과 맞음). 회색으로 보이던 마커도 검출됨.
 - 처음 버전은 맞은편 웹캠 때문에 화면 속 키보드가 거꾸로 보였다 → 프리뷰 좌우 반전을 끄고, 고정 시 종이가 똑바로 보이는 각도(`uprightRotationDegrees`)로 프리뷰를 돌리게 고쳤다.
 
+### 3단계: 손끝 추적 (2026-10-18 시작, 진행 중)
+- `FingertipTracker`(앱, Vision `VNDetectHumanHandPoseRequest`): 보이는 손 중 검지 끝 신뢰도가 가장 높은 손 하나. 종이가 고정된 뒤에만 돌린다.
+- 맞은편 웹캠은 손이 거꾸로 찍히므로, 종이가 똑바로 보이는 각도(`uprightRotationDegrees`)로 영상을 돌려 Vision에 넘기고 결과를 원본 버퍼 좌표로 되돌린다 (`CoordinateMapper.pixel(fromVision:imageSize:uprightRotation:)`, 단위 테스트).
+- 손끝 → 종이 mm → `FingertipSmoother` → 올라간 키. 신뢰도 `minConfidence` 미만은 회색 점으로만 표시하고 키 판단 안 함.
+- 화면: 손끝 빨간 점, 올라간 키 노란색, 상단에 "손끝 위치: F 키", 아래 정보 줄에 손 인식 시간과 신뢰도.
+- 단위 테스트 102개 통과, iPad에 설치. **실기기 손끝 추적은 확인 전.**
+

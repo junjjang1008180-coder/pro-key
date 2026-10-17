@@ -188,13 +188,14 @@ PaperKeyboard.xcodeproj               # 메인 앱 타겟 (키보드 확장 타�
 PaperKeyboardApp/
 ├── App/PaperKeyboardApp.swift        # @main, AppModel (카메라 ↔ 인식 연결)
 ├── Camera/CameraService.swift        # 웹캠 우선, 없으면 전면 초광각. 원본(미러링·회전 없음) 프레임 전달
-├── Recognition/PaperKeyboardDetector.swift  # 프레임 → GrayImage(640폭) → MarkerDetector → CalibrationLock
+├── Recognition/PaperKeyboardDetector.swift  # 인식 파이프라인: 프레임 → GrayImage(640폭) → MarkerDetector → CalibrationLock → 손끝
+├── Recognition/FingertipTracker.swift       # Vision 검지 끝. 종이가 똑바로 보이는 방향으로 돌려 넘기고 원본 좌표로 되돌림
 ├── Views/ContentView.swift           # 상태 안내, 카메라 선택, 재보정
 ├── Views/CameraOverlayView.swift     # 프리뷰 + 마커/키 테두리 겹쳐 그리기
 └── Assets.xcassets                   # 앱 아이콘
 Config/PaperKeyboard.xcconfig         # 공통 설정, 서명 팀은 Signing.local.xcconfig(git 제외)에서 가져옴
 ```
-`FingertipTracker`(Vision), `EventPublisher`, 키보드 확장은 해당 단계에서 추가한다.
+`EventPublisher`, 키보드 확장은 해당 단계에서 추가한다.
 
 ### 레이아웃 정의 파일 형식 (`layout_qwerty.json`, 단위 mm)
 - `paper`: 종이 폭/높이. 현재 A4 가로(297 x 210).

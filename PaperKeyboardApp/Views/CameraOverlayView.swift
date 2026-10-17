@@ -107,7 +107,20 @@ final class OverlayView: UIView {
 
         if let mapping = snapshot.mapping, let layout {
             let color: UIColor = snapshot.lockState == .needsRecalibration ? .systemOrange : .systemGreen
+            if let id = snapshot.hoveredKeyID, let key = layout.key(withID: id) {
+                fillKey(key, mapping: mapping, in: context)
+            }
             drawKeys(layout: layout, mapping: mapping, color: color, in: context)
+        }
+
+        // 검지 손끝: 빨간 점, 신뢰도가 낮으면 회색
+        if let tip = snapshot.fingertip, let p = viewPoint(tip.pixel) {
+            let color = tip.paper == nil ? UIColor.systemGray : UIColor.systemRed
+            context.setFillColor(color.cgColor)
+            context.fillEllipse(in: CGRect(x: p.x - 9, y: p.y - 9, width: 18, height: 18))
+            context.setStrokeColor(UIColor.white.cgColor)
+            context.setLineWidth(2)
+            context.strokeEllipse(in: CGRect(x: p.x - 9, y: p.y - 9, width: 18, height: 18))
         }
 
         // 후보 덩어리
@@ -131,6 +144,15 @@ final class OverlayView: UIView {
                 drawLabel(name, at: CGPoint(x: p.x, y: p.y + 26), color: color, size: 12)
             }
         }
+    }
+
+    /// 손끝이 올라간 키를 노랗게 칠한다.
+    private func fillKey(_ key: KeyboardLayout.Key, mapping: PaperMapping, in context: CGContext) {
+        guard let corners = mapping.pixelCorners(of: key.frame)?.compactMap(viewPoint), corners.count == 4 else { return }
+        context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.45).cgColor)
+        context.addLines(between: corners)
+        context.closePath()
+        context.fillPath()
     }
 
     private func drawKeys(layout: KeyboardLayout, mapping: PaperMapping, color: UIColor, in context: CGContext) {
