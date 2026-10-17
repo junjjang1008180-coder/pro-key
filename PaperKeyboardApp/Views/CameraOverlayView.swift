@@ -14,6 +14,8 @@ struct CameraOverlayView: UIViewRepresentable {
     let layout: KeyboardLayout
     /// nil이면 기기 방향 기준(수평)으로, 값이 있으면 그 각도로 프리뷰를 돌린다.
     let paperRotation: Double?
+    /// 방금 눌린 키 (파랗게 반짝).
+    let flashKeyID: String?
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -26,7 +28,7 @@ struct CameraOverlayView: UIViewRepresentable {
     func updateUIView(_ view: PreviewView, context: Context) {
         view.attach(device: device)
         view.paperRotation = paperRotation.map { CGFloat($0) }
-        view.overlay.update(snapshot: snapshot, layout: layout)
+        view.overlay.update(snapshot: snapshot, layout: layout, flashKeyID: flashKeyID)
     }
 }
 
@@ -88,10 +90,12 @@ final class OverlayView: UIView {
     weak var previewLayer: AVCaptureVideoPreviewLayer?
     private var snapshot = PaperKeyboardDetector.Snapshot()
     private var layout: KeyboardLayout?
+    private var flashKeyID: String?
 
-    func update(snapshot: PaperKeyboardDetector.Snapshot, layout: KeyboardLayout) {
+    func update(snapshot: PaperKeyboardDetector.Snapshot, layout: KeyboardLayout, flashKeyID: String?) {
         self.snapshot = snapshot
         self.layout = layout
+        self.flashKeyID = flashKeyID
         setNeedsDisplay()
     }
 
@@ -108,7 +112,10 @@ final class OverlayView: UIView {
         if let mapping = snapshot.mapping, let layout {
             let color: UIColor = snapshot.lockState == .needsRecalibration ? .systemOrange : .systemGreen
             if let id = snapshot.hoveredKeyID, let key = layout.key(withID: id) {
-                fillKey(key, mapping: mapping, in: context)
+                fillKey(key, mapping: mapping, color: .systemYellow, in: context)
+            }
+            if let id = flashKeyID, let key = layout.key(withID: id) {
+                fillKey(key, mapping: mapping, color: .systemBlue, in: context)
             }
             drawKeys(layout: layout, mapping: mapping, color: color, in: context)
         }
@@ -146,10 +153,10 @@ final class OverlayView: UIView {
         }
     }
 
-    /// 손끝이 올라간 키를 노랗게 칠한다.
-    private func fillKey(_ key: KeyboardLayout.Key, mapping: PaperMapping, in context: CGContext) {
+    /// 키를 칠한다: 손끝이 올라간 키는 노랑, 방금 눌린 키는 파랑.
+    private func fillKey(_ key: KeyboardLayout.Key, mapping: PaperMapping, color: UIColor, in context: CGContext) {
         guard let corners = mapping.pixelCorners(of: key.frame)?.compactMap(viewPoint), corners.count == 4 else { return }
-        context.setFillColor(UIColor.systemYellow.withAlphaComponent(0.45).cgColor)
+        context.setFillColor(color.withAlphaComponent(0.5).cgColor)
         context.addLines(between: corners)
         context.closePath()
         context.fillPath()

@@ -30,8 +30,8 @@ final class CameraService: NSObject, ObservableObject {
     /// 사용자가 고른 카메라. nil이면 자동(웹캠 우선).
     @Published private(set) var chosenCameraID: String?
 
-    /// 프레임마다 `videoQueue`에서 불린다. 미러링·회전하지 않은 원본 버퍼.
-    var onFrame: ((CVPixelBuffer) -> Void)?
+    /// 프레임마다 `videoQueue`에서 불린다. 미러링·회전하지 않은 원본 버퍼와 찍힌 시각(초).
+    var onFrame: ((CVPixelBuffer, Double) -> Void)?
     /// 다른 카메라로 바뀌었을 때 (보정을 다시 해야 함). 메인 스레드.
     var onCameraChanged: (() -> Void)?
 
@@ -238,6 +238,7 @@ extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate {
         frameCount += 1
         fpsLock.unlock()
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        onFrame?(buffer)
+        // 멈춘 시간·속도 계산은 처리 시각이 아니라 찍힌 시각으로 해야 처리 지연에 흔들리지 않는다.
+        onFrame?(buffer, CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)))
     }
 }

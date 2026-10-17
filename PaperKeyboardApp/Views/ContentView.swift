@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var camera: CameraService
+    @State private var showsSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -14,15 +15,50 @@ struct ContentView: View {
                     device: camera.currentDevice,
                     snapshot: model.snapshot,
                     layout: model.layout,
-                    paperRotation: model.paperRotation
+                    paperRotation: model.paperRotation,
+                    flashKeyID: model.flashKeyID
                 )
                 statusBanner
                     .padding(12)
             }
+            typingPanel
             controlBar
         }
         .background(Color.black)
         .onAppear { camera.start() }
+        .sheet(isPresented: $showsSettings) {
+            SettingsView(model: model)
+        }
+    }
+
+    // MARK: - 친 글자 (4단계: 앱 안 입력칸)
+
+    private var typingPanel: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 6) {
+                Text(model.language == .korean ? "한" : "A")
+                    .font(.headline)
+                    .frame(width: 34, height: 30)
+                    .background(model.language == .korean ? Color.blue : Color.gray.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+                Image(systemName: model.isShiftArmed ? "shift.fill" : "shift")
+                    .foregroundStyle(model.isShiftArmed ? .yellow : .secondary)
+            }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(model.typedText.isEmpty ? "종이 키를 누르면 여기에 글자가 써집니다" : model.typedText + "▏")
+                        .font(.title3.monospaced())
+                        .foregroundStyle(model.typedText.isEmpty ? .secondary : .primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .id("end")
+                }
+                .onChange(of: model.typedText) { _, _ in proxy.scrollTo("end", anchor: .bottom) }
+            }
+            .frame(height: 72)
+            Button("지우기") { model.clearText() }
+                .buttonStyle(.bordered)
+        }
+        .padding(12)
+        .background(Color(.secondarySystemBackground))
     }
 
     // MARK: - 위쪽 상태 안내
@@ -84,6 +120,13 @@ struct ContentView: View {
             Button("재보정") { model.recalibrate() }
                 .buttonStyle(.borderedProminent)
 
+            Button {
+                showsSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .accessibilityLabel("누름 판정 설정")
+
             if camera.status.authorization == "거부됨" {
                 Button("설정 열기") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -107,6 +150,21 @@ struct ContentView: View {
         let multitasking = status.multitaskingSupported ? "멀티태스킹 지원" : "멀티태스킹 미지원"
         let snapshot = model.snapshot
         let confidence = snapshot.fingertip.map { String(format: " · 손끝 신뢰도 %.2f", $0.confidence) } ?? ""
-        return "\(status.resolution) · \(String(format: "%.0f", status.fps))fps · 종이 \(String(format: "%.1f", snapshot.detectionMilliseconds))ms · 손 \(String(format: "%.1f", snapshot.handMilliseconds))ms\(confidence) · \(multitasking)"
+        let first = "\(status.resolution) · \(String(format: "%.0f", status.fps))fps · 종이 \(String(format: "%.1f", snapshot.detectionMilliseconds))ms · 손 \(String(format: "%.1f", snapshot.handMilliseconds))ms\(confidence) · \(multitasking)"
+        return first + "\n" + pressText
+    }
+
+    /// 누름 판정 상태와 판정에 쓰인 값 (튜닝용).
+    private var pressText: String {
+        guard let press = model.snapshot.press else { return "누름 판정: 대기 (종이 고정 후 시작)" }
+        let state: String
+        switch press.state {
+        case .idle: state = "대기"
+        case .hover(let id): state = "\(id) 위에 있음"
+        case .pressed(let id): state = "\(id) 누름 (손을 떼야 다음 입력)"
+        }
+        let speed = press.speed.map { String(format: " · 속도 %.0fmm/s", $0) } ?? ""
+        let still = press.stillDuration.map { String(format: " · 멈춤 %.2f초", $0) } ?? ""
+        return "누름 판정: \(state)\(speed)\(still)"
     }
 }

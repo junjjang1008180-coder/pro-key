@@ -110,6 +110,22 @@ struct PressDetectorTests {
         #expect(run(s) == ["f"])
     }
 
+    @Test func 재설정하면_누른_상태가_풀려_같은_키를_다시_누를_수_있다() {
+        var detector = PressDetector(layout: layout, settings: settings)
+        var hold = Script(start: center("f"))
+        hold.hold(seconds: 0.3)
+        let first = hold.observations.compactMap { detector.process($0)?.id }
+        #expect(first == ["f"])
+        #expect(detector.state == .pressed(keyID: "f"))
+
+        detector.reset()
+        #expect(detector.state == .idle)
+        #expect(detector.diagnostics == nil)
+        let second = hold.observations.map { PressDetector.Observation(time: $0.time + 10, fingertip: $0.fingertip, confidence: $0.confidence) }
+            .compactMap { detector.process($0)?.id }
+        #expect(second == ["f"])
+    }
+
     @Test func 신뢰도_낮은_프레임은_무시하고_상태를_유지한다() {
         var s = Script(start: offKeyboard)
         s.move(to: center("f"), speed: 200)

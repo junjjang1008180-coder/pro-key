@@ -80,6 +80,13 @@ public struct PressDetector: Sendable {
         }
     }
 
+    /// 처음 상태로. 재보정하거나 종이 변환이 없어졌을 때 부른다.
+    public mutating func reset() {
+        phase = .idle
+        lastSample = nil
+        diagnostics = nil
+    }
+
     /// 프레임 하나를 넣는다. 누름이 확정된 프레임에서만 키를 돌려준다.
     public mutating func process(_ observation: Observation) -> KeyboardLayout.Key? {
         var transitions: [String] = []
