@@ -104,9 +104,9 @@
 | macOS | 27.0.1 (26A434) |
 | Xcode / SDK | Xcode 27.0 (27A266a), iOS SDK 27.0 |
 | 칩 | Apple 실리콘 (arm64) |
-| iPad | M4 11인치 (Pro/Air 여부 미확인), iPadOS 26.6.2 |
+| iPad | **iPad Air 11-inch (M4)** (iPad16,8), iPadOS 26.6.2 |
 | Apple 계정 | 무료 계정 (Personal Team) |
-| 실기기 연결 | 미확인 (케이블 없음) |
+| 실기기 연결 | 2026-10-17 유선 연결·페어링 확인. 개발자 모드 꺼짐, Xcode에 Apple 계정 미등록 |
 
 결정:
 - Deployment target은 **iPadOS 26.0**. iOS 27 SDK 전용 API는 `#available`로 감싼다.
