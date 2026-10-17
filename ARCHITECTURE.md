@@ -25,8 +25,8 @@
 |---|---|---|
 | `CameraService` | 메인 앱 | 전면 카메라 캡처, 프레임 드롭 허용, 멀티태스킹 카메라 활성화 시도, 중단(interruption) 처리 |
 | `KeyboardLayout` | Shared | JSON(mm 단위) 레이아웃 로드, 키 영역/마커 위치 제공 |
-| `PrintableLayoutRenderer` | 메인 앱 | 같은 레이아웃으로 인쇄용 PDF 생성 |
-| `PaperKeyboardDetector` | 메인 앱 | 모서리 마커 검출 → 호모그래피(3x3 원근 변환) 계산 → 안정 시 고정 |
+| `PrintableLayoutRenderer` | 코어 패키지 (`PaperKeyboardPrinting`) | 같은 레이아웃으로 인쇄용 PDF 생성. 메인 앱만 링크 |
+| `PaperKeyboardDetector` | 메인 앱 | 카메라 프레임 → `MarkerDetector` → `CalibrationLock`을 잇는 얇은 층 (아래 5절) |
 | `CoordinateMapper` | 메인 앱 | Vision 정규화 좌표 ↔ 이미지 픽셀 ↔ 종이 mm 좌표 변환 (순수 함수) |
 | `FingertipTracker` | 메인 앱 | `VNDetectHumanHandPoseRequest`로 검지 끝(`indexTip`) 추출, 신뢰도 필터, 스무딩 |
 | `PressDetector` | 메인 앱 | 누름 판정 상태 머신 (아래 4절) |
@@ -67,12 +67,19 @@ PRESSED ──그대로 머묾──► PRESSED (추가 입력 없음)
   - 들림 판정은 누른 위치(anchor)에서 `releaseDistance` 이상 멀어진 경우.
 - **열린 문제**: 단일 전면 카메라는 깊이를 알 수 없어, "키 위에 손가락을 멈춰 올려 둠"과 "눌렀다가 멈춤"이 화면상 같다. 현재 설계(dwell)에서는 손끝을 키 위에 멈추면 1회 입력된다. PRD 9절 성공 기준 "올려만 두었을 때는 입력되지 않는다"와 충돌하므로 4단계 실기기 튜닝 때 다른 신호(손끝/관절 각도, 접근 방향 등)를 검토한다. 현재 테스트는 "지나가기만 함 → 0회", "누른 채 유지 → 1회"로 해석했다.
 
-## 5. 보정 고정 (`PaperKeyboardDetector`)
+## 5. 마커 검출과 보정 고정 (`PaperKeyboardDetector`)
 - 네 마커가 모두 보이고, 연속 N프레임 동안 위치 변화가 작으면 호모그래피를 **고정(lock)** 한다.
 - 고정 후에는 손이 마커를 가려도 고정값을 계속 쓴다. 마커가 다시 보일 때 위치 차이가 크면(종이가 밀림) "재보정 필요" 상태로 알린다.
 - 사용자가 누르는 "재보정" 버튼으로 언제든 다시 잡을 수 있다.
-- 마커 검출 방법 후보: Vision `VNDetectRectanglesRequest`로 종이 외곽 검출, 또는 인쇄된 검은 사각형 마커를 Vision/Core Image로 검출. 1~2단계에서 실험 후 결정하고 결과를 이 문서에 기록.
-- **열린 문제 (2단계에서 결정)**: 네 마커가 모두 같은 검은 사각형이면 어느 것이 왼쪽 위인지 구분할 수 없다. 종이가 카메라에 거꾸로 비치면 키가 뒤바뀐다. 마커 하나를 다른 모양으로 하거나, 거치 방향을 고정하고 화면 위치로 정하는 방법 중 하나를 고른다.
+- **결정 (2026-10-17): 왼쪽 위 마커에만 흰 정사각형 구멍.** 네 마커가 같으면 종이가 거꾸로 비칠 때 키가 뒤바뀌므로, 구멍 난 마커를 왼쪽 위로 정하고 거기서 시계 방향으로 나머지를 정한다. 거치 방향을 고정하는 방법보다 사용자가 신경 쓸 것이 적다. 구멍 크기는 레이아웃 JSON `markers.holeSize`(7mm)에 있다.
+- **결정: 마커 검출은 Vision 대신 직접 구현한 `MarkerDetector`(순수 Swift).** 인쇄물 모양을 정확히 알고 있으므로 그에 맞춘 검사가 더 확실하고, Mac에서 가짜 카메라 이미지로 끝까지 테스트할 수 있다. 실기기에서 부족하면 Vision `VNDetectRectanglesRequest`를 후보 찾기에 섞는 것을 검토한다.
+  1. 주변 평균(적분 이미지, 짧은 변의 25% 창)보다 40% 이상 어두운 픽셀만 고른다. 피부·그림자·옅은 키 테두리는 여기서 빠진다.
+  2. 이어진 덩어리 중 크기·가로세로비·채움 비율이 맞는 것을 후보로 하고, 중심이 밝으면 "구멍 있음".
+  3. 구멍 있는 후보 1개 + 꽉 찬 후보 3개 중 면적이 비슷하고 볼록 사각형을 이루는 조합을 만든다.
+  4. **검증**: 그 조합으로 만든 변환으로 레이아웃의 마커 자리를 이미지에 되돌려 보고, 마커 안(구멍 마커는 테두리 띠)은 검고 마커 바로 바깥과 구멍은 흰지 본다. 마커 하나가 가려졌을 때 키 글자 네 개가 우연히 사각형을 이뤄 통과하던 문제를 이 단계로 막았다 (회귀 테스트 있음).
+  5. 통과한 조합 중 면적 합이 가장 큰 것. 실패하면 화면 안내용 이유(`notEnoughMarkers`, `orientationMarkerNotFound`, `noConsistentQuad`)를 돌려준다.
+- 입력 `GrayImage`는 카메라 버퍼의 밝기(Y) 평면을 **미러링하지 않은 채** 넣는다. 좌우가 뒤집히면 시계 방향이 반대가 되어 모서리 순서가 틀어진다. 640×360으로 줄여 넣는 것을 기본으로 한다 (Mac release 빌드 기준 1프레임 약 1.6ms).
+- `CalibrationLock`: `lockFrameCount`(10) 프레임 연속 흔들림이 대각선의 0.6% 이내면 그 평균으로 고정. 고정 후 검출 실패 프레임은 무시(가림). 마커 **두 개 이상**이 대각선의 1.5% 넘게 벗어난 프레임이 `driftFrameCount`(5)번 연속되면 `needsRecalibration` (기존 변환은 계속 쓰고, `reset()` 전까지 유지). 하나만 벗어난 것은 손에 일부 가려 중심이 흔들린 경우로 본다. 임계값은 모두 `RecognitionSettings`.
 - 호모그래피 계산은 `Homography`(점 정규화 + 8x8 연립방정식)로 구현되어 있다. 세 마커가 거의 한 직선이면 계산을 거부한다 (`nil`).
 
 ## 6. 앱 ↔ 키보드 이벤트 채널
@@ -153,21 +160,27 @@ PaperKeyboardCore/
 │   │   ├── Geometry.swift            # PaperPoint, PaperRect, CornerQuad
 │   │   ├── KeyboardLayout.swift
 │   │   └── Resources/layout_qwerty.json
-│   └── PaperKeyboardRecognition/     # 메인 앱 전용 순수 계산 (Vision 호출은 앱 타겟에서)
-│       ├── CoordinateMapper.swift    # 좌표 타입, Vision↔픽셀, PaperMapping
-│       ├── Homography.swift
-│       ├── FingertipSmoother.swift
-│       ├── PressDetector.swift
-│       └── RecognitionSettings.swift # 임계값 모음
+│   ├── PaperKeyboardRecognition/     # 메인 앱 전용 순수 계산 (Vision 호출은 앱 타겟에서)
+│   │   ├── CoordinateMapper.swift    # 좌표 타입, Vision↔픽셀, PaperMapping
+│   │   ├── Homography.swift
+│   │   ├── MarkerDetector.swift      # GrayImage, 모서리 마커 검출 + 검증
+│   │   ├── CalibrationLock.swift     # 보정 고정 / 재보정 필요 판정
+│   │   ├── FingertipSmoother.swift
+│   │   ├── PressDetector.swift
+│   │   └── RecognitionSettings.swift # 임계값 모음
+│   ├── PaperKeyboardPrinting/        # 메인 앱 전용: 인쇄용 PDF / 흑백 비트맵 그리기
+│   │   └── PrintableLayoutRenderer.swift
+│   └── layout-pdf/                   # Mac 도구: swift run layout-pdf <출력.pdf>
 └── Tests/
     ├── PaperKeyboardSharedTests/
-    └── PaperKeyboardRecognitionTests/
+    └── PaperKeyboardRecognitionTests/  # SyntheticCamera: 인쇄 그림을 원근 변환한 가짜 카메라 이미지
+Printables/paper_keyboard_qwerty_a4.pdf  # 인쇄용 (layout-pdf로 다시 만들 수 있음)
 ```
-`CameraService`, Vision을 부르는 `PaperKeyboardDetector`/`FingertipTracker`, `PrintableLayoutRenderer`, `EventPublisher`(Darwin 알림 포함), 키보드 확장 코드는 모드 결정 후 앱 타겟에 만든다.
+`CameraService`, Vision을 부르는 `FingertipTracker`, 카메라 프레임을 검출기에 잇는 `PaperKeyboardDetector`, `EventPublisher`(Darwin 알림 포함), 키보드 확장 코드는 모드 결정 후 앱 타겟에 만든다.
 
 ### 레이아웃 정의 파일 형식 (`layout_qwerty.json`, 단위 mm)
 - `paper`: 종이 폭/높이. 현재 A4 가로(297 x 210).
-- `markers`: `size`(마커 한 변), `inset`(종이 가장자리에서 마커까지). 마커 중심이 호모그래피 기준점.
+- `markers`: `size`(마커 한 변), `inset`(종이 가장자리에서 마커까지), `holeSize`(왼쪽 위 마커의 흰 구멍 한 변, 테두리가 한쪽 2mm 이상 남아야 함). 마커 중심이 호모그래피 기준점.
 - `keyPitch`(키 칸 간격), `keySize`(실제 키 크기). 둘의 차이가 키 사이 틈.
 - `rows[]`: `x`, `y`(행 첫 칸의 왼쪽 위)와 `keys[]`. 키는 `kind`(생략 시 `char`), `value`(글자), `label`(생략 시 대문자), `units`(폭 배수, 기본 1).
 - 읽을 때 검사: 버전, 키 ID 중복, 종이 밖, 키끼리 겹침, 마커와 겹침.
