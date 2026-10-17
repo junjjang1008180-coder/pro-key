@@ -34,6 +34,20 @@ struct KeyboardLayoutTests {
         #expect(layout.markerCenters.bottomLeft == PaperPoint(x: 17.5, y: 192.5))
     }
 
+    @Test func 왼쪽_위_마커에만_가운데_구멍이_있다() throws {
+        let layout = try KeyboardLayout.bundledQWERTY()
+        let hole = layout.orientationHoleFrame
+        #expect(hole.center == layout.markerCenters.topLeft)
+        #expect(hole.width == 7)
+        #expect(hole.minX > layout.markerFrames.topLeft.minX && hole.maxX < layout.markerFrames.topLeft.maxX)
+    }
+
+    @Test func 구멍이_마커만큼_크면_거부한다() {
+        #expect(throws: KeyboardLayout.LayoutError.invalidDimensions("markers.holeSize")) {
+            try KeyboardLayout(jsonData: Self.json(rows: "[]", holeSize: 13))
+        }
+    }
+
     @Test func 점으로_키를_찾고_안쪽_여백을_반영한다() throws {
         let layout = try KeyboardLayout.bundledQWERTY()
         let f = try #require(layout.key(withID: "f"))
@@ -76,10 +90,10 @@ struct KeyboardLayoutTests {
         }
     }
 
-    static func json(rows: String, version: Int = 1) -> Data {
+    static func json(rows: String, version: Int = 1, holeSize: Double = 7) -> Data {
         Data("""
         {"name": "test", "version": \(version), "paper": {"width": 297, "height": 210},
-         "markers": {"size": 15, "inset": 10}, "keyPitch": 19, "keySize": 17, "rows": \(rows)}
+         "markers": {"size": 15, "inset": 10, "holeSize": \(holeSize)}, "keyPitch": 19, "keySize": 17, "rows": \(rows)}
         """.utf8)
     }
 }

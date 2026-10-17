@@ -18,6 +18,8 @@ public struct KeyboardLayout: Sendable {
     public let paperHeight: Double
     /// 모서리 마커 영역 (검은 정사각형).
     public let markerFrames: CornerQuad<PaperRect>
+    /// 왼쪽 위 마커 가운데의 흰 구멍. 네 마커 중 이것만 모양이 달라 종이 방향(어느 쪽이 위인지)을 구분한다.
+    public let orientationHoleFrame: PaperRect
     public let keys: [Key]
 
     /// 원근 보정 기준점: 마커 중심 (mm).
@@ -79,6 +81,10 @@ extension KeyboardLayout {
         guard d.version == Self.supportedVersion else { throw LayoutError.unsupportedVersion(d.version) }
         guard d.paper.width > 0, d.paper.height > 0 else { throw LayoutError.invalidDimensions("paper") }
         guard d.markers.size > 0, d.markers.inset >= 0 else { throw LayoutError.invalidDimensions("markers") }
+        // 구멍 둘레의 검은 테두리가 너무 얇으면 카메라에서 끊겨 보이므로 한쪽 2mm 이상 남긴다.
+        guard d.markers.holeSize > 0, d.markers.holeSize <= d.markers.size - 4 else {
+            throw LayoutError.invalidDimensions("markers.holeSize")
+        }
         guard d.keyPitch > 0, d.keySize > 0, d.keySize <= d.keyPitch else {
             throw LayoutError.invalidDimensions("keyPitch/keySize")
         }
@@ -90,6 +96,9 @@ extension KeyboardLayout {
             bottomRight: PaperRect(x: w - m - s, y: h - m - s, width: s, height: s),
             bottomLeft: PaperRect(x: m, y: h - m - s, width: s, height: s)
         )
+
+        let hole = d.markers.holeSize
+        let holeFrame = PaperRect(x: m + (s - hole) / 2, y: m + (s - hole) / 2, width: hole, height: hole)
 
         // 키 칸(cell) 하나는 pitch 크기, 실제 키는 그 안에서 gap/2씩 띄운다.
         let gap = d.keyPitch - d.keySize
@@ -128,6 +137,7 @@ extension KeyboardLayout {
         self.paperWidth = w
         self.paperHeight = h
         self.markerFrames = markers
+        self.orientationHoleFrame = holeFrame
         self.keys = keys
     }
 
@@ -157,8 +167,8 @@ extension KeyboardLayout {
     /// JSON 파일 구조. 단위는 모두 mm.
     struct Definition: Decodable {
         struct Paper: Decodable { let width: Double; let height: Double }
-        /// size: 마커 한 변, inset: 종이 가장자리에서 마커까지 거리.
-        struct Markers: Decodable { let size: Double; let inset: Double }
+        /// size: 마커 한 변, inset: 종이 가장자리에서 마커까지 거리, holeSize: 왼쪽 위 마커의 흰 구멍 한 변.
+        struct Markers: Decodable { let size: Double; let inset: Double; let holeSize: Double }
         /// x, y: 행의 첫 칸 왼쪽 위.
         struct Row: Decodable { let x: Double; let y: Double; let keys: [KeySpec] }
         /// kind 생략 시 글자 키. units: 키 폭 배수 (기본 1).

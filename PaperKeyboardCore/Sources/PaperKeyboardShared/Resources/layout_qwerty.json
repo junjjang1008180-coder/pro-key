@@ -2,7 +2,7 @@
   "name": "qwerty-a4-landscape",
   "version": 1,
   "paper": { "width": 297, "height": 210 },
-  "markers": { "size": 15, "inset": 10 },
+  "markers": { "size": 15, "inset": 10, "holeSize": 7 },
   "keyPitch": 19,
   "keySize": 17,
   "rows": [
