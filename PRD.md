@@ -119,7 +119,7 @@
 | 실험 | 결과 | 비고 |
 |---|---|---|
 | 1. 멀티태스킹 카메라 (`isMultitaskingCameraAccessSupported`, Split View / Slide Over / Stage Manager에서 프레임 유지) | 미확인 | |
-| 2. 무료 계정으로 App Group 추가 + 앱 ↔ 키보드 파일 공유 | 미확인 | |
+| 2. 무료 계정으로 App Group 추가 + 앱 ↔ 키보드 파일 공유 | **절반 확인** | 2026-10-17: 무료 계정(Personal Team)으로 앱·키보드 모두 `group.com.junjjang.PaperKeyboardLab`이 들어간 프로비저닝 프로파일 발급 성공 (7일 만료, iPad 등록됨). 기기에서 실제 파일 공유·Full Access 영향은 아직 미확인 |
 | 3. 거치 상태에서 종이 전체와 손이 함께 보이는지 | 미확인 | |
 
 모드 결정: 미정 (실험 후 사용자와 결정)
