@@ -185,8 +185,6 @@ extension KeyboardLayout {
         case .enter: "Enter ⏎"
         case .backspace: "⌫ Backspace"
         case .tab: "Tab ⇥"
-        case .cursorLeft: "←"
-        case .cursorRight: "→"
         case .shift: "⇧ Shift"
         case .capsLock: "Caps Lock"
         case .languageToggle: "한/영"

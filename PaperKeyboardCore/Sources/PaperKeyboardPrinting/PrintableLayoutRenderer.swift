@@ -97,7 +97,7 @@ public struct PrintableLayoutRenderer: Sendable {
             drawText(shifted, centeredAt: PaperPoint(x: f.center.x, y: f.minY + 5), fontSize: 4.2, gray: 0.3, in: context)
             drawText(key.label, centeredAt: PaperPoint(x: f.center.x, y: f.maxY - 5), fontSize: 5, gray: 0.2, in: context)
         } else if !key.label.isEmpty {
-            let size = key.kind == .cursorLeft || key.kind == .cursorRight || key.kind == .char ? 5.5 : 3.6
+            let size = key.kind == .char ? 5.5 : 3.6
             drawText(key.label, centeredAt: f.center, fontSize: size, gray: 0.25, in: context)
         }
     }

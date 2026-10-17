@@ -19,7 +19,7 @@ struct KeyboardLayoutTests {
             #expect(layout.key(withID: String(character))?.shiftValue != nil, "\(character) 키 또는 Shift 글자 없음")
         }
         #expect(layout.key(withID: "shiftRight")?.kind == .shift)
-        #expect(layout.keys.count == 57)
+        #expect(layout.keys.count == 55)
     }
 
     @Test func 두벌식_자모가_표준_자리에_있다() throws {

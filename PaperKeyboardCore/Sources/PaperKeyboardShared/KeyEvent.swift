@@ -9,9 +9,6 @@ public enum KeyKind: String, Codable, Sendable, CaseIterable {
     case enter
     case backspace
     case tab
-    /// 커서를 한 글자 왼쪽/오른쪽으로.
-    case cursorLeft
-    case cursorRight
     case shift
     case capsLock
     /// 한/영 전환.

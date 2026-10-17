@@ -85,10 +85,10 @@ PRESSED ──그대로 머묾──► PRESSED (추가 입력 없음)
 ## 6. 앱 ↔ 키보드 이벤트 채널
 ### 포맷
 ```
-KeyEvent { seq: UInt64(단조 증가), kind: char|space|enter|backspace|tab|cursorLeft|cursorRight, value: String?, timestamp: Double }
+KeyEvent { seq: UInt64(단조 증가), kind: char|space|enter|backspace|tab, value: String?, timestamp: Double }
 ```
 - 상태만 바꾸는 키(shift, capsLock, languageToggle)는 **메인 앱의 `KeyInputResolver`**가 처리하고 이벤트로 보내지 않는다. `char`의 `value`는 이미 Shift/Caps Lock/한영이 반영된 글자이고, 한글 모드면 자모 하나(예: "ㅂ")다.
-- **한글 조합은 키보드 확장에서** `HangulComposer`로 한다. 조합기가 돌려주는 `Edit`(지울 글자 수 + 넣을 글자)를 `deleteBackward()` 반복 + `insertText()`로 적용한다. 조합 상태는 지금 입력창에만 의미가 있으므로, 메인 앱이 아니라 입력창 변화를 아는 키보드가 들고 있어야 한다. `textWillChange`/`selectionDidChange`(사용자가 커서를 옮기거나 입력창이 바뀜), `viewWillAppear`, 그리고 enter/tab/커서 이동 전에 `commit()`해서 엉뚱한 글자를 지우지 않게 한다. 컨트롤러가 새로 만들어지면 조합 상태도 새로 시작하는 것이 맞다.
+- **한글 조합은 키보드 확장에서** `HangulComposer`로 한다. 조합기가 돌려주는 `Edit`(지울 글자 수 + 넣을 글자)를 `deleteBackward()` 반복 + `insertText()`로 적용한다. 조합 상태는 지금 입력창에만 의미가 있으므로, 메인 앱이 아니라 입력창 변화를 아는 키보드가 들고 있어야 한다. `textWillChange`/`selectionDidChange`(사용자가 커서를 옮기거나 입력창이 바뀜), `viewWillAppear`, 그리고 enter/tab 전에 `commit()`해서 엉뚱한 글자를 지우지 않게 한다. 컨트롤러가 새로 만들어지면 조합 상태도 새로 시작하는 것이 맞다.
 - `setMarkedText`(밑줄 조합 표시) 대신 지우고 다시 넣는 방식을 쓴다. 앱마다 marked text 처리가 달라 동작이 고르지 않기 때문이다. 실기기에서 문제가 있으면 다시 검토한다.
 ### 쓰기 (메인 앱)
 - App Group 컨테이너의 `events.log`에 한 줄씩 추가 (JSON Lines). 쓰기 후 Darwin 알림 발송.
@@ -188,9 +188,9 @@ Printables/paper_keyboard_qwerty_a4.pdf  # 인쇄용 (layout-pdf로 다시 만�
 - `markers`: `size`(마커 한 변), `inset`(종이 가장자리에서 마커까지), `holeSize`(왼쪽 위 마커의 흰 구멍 한 변, 테두리가 한쪽 2mm 이상 남아야 함). 마커 중심이 호모그래피 기준점.
 - `keyPitch`(키 칸 간격), `keySize`(실제 키 크기). 둘의 차이가 키 사이 틈.
 - `rows[]`: `x`, `y`(행 첫 칸의 왼쪽 위)와 `keys[]`. 키는 `kind`(생략 시 `char`), `value`(글자 하나), `shift`(Shift 글자, 영문자는 생략 시 대문자), `ko`/`koShift`(두벌식 자모), `label`(생략 시 대문자), `units`(폭 배수, 기본 1), `id`(같은 종류 특수키가 둘일 때, 예: `shiftRight`). 키 사이가 비는 줄은 같은 `y`로 행을 둘로 나눈다.
-- `kind`: `char`, `space`, `enter`, `backspace`, `tab`, `cursorLeft`, `cursorRight`, `shift`, `capsLock`, `languageToggle`.
+- `kind`: `char`, `space`, `enter`, `backspace`, `tab`, `shift`, `capsLock`, `languageToggle`.
 - 읽을 때 검사: 버전, 키 ID 중복, 종이 밖, 키끼리 겹침, 마커와 겹침, 글자/Shift 값은 한 글자, 한글 값은 자모 한 글자.
-- 현재 레이아웃(`qwerty-ko-a4-landscape`): 사용자 키보드 주 영역과 같은 배열, 키 간격 18mm·키 16mm, 키 57개.
+- 현재 레이아웃(`qwerty-ko-a4-landscape`): 사용자 키보드 주 영역과 같은 배열, 키 간격 18mm·키 16mm, 키 55개. 방향키는 사용자 요청으로 뺐다.
 - 종이 크기와 키 크기는 1단계 실험 3(거치 화각) 결과에 따라 바꿀 수 있다.
 
 ## 10. 테스트 전략

@@ -42,7 +42,7 @@ public struct KeyInputResolver: Sendable {
         case .char:
             defer { isShiftArmed = false }
             return Output(kind: .char, value: character(for: key))
-        case .space, .enter, .backspace, .tab, .cursorLeft, .cursorRight:
+        case .space, .enter, .backspace, .tab:
             // Shift 다음에 글자가 아닌 키를 누르면 Shift는 취소된다.
             isShiftArmed = false
             return Output(kind: key.kind)

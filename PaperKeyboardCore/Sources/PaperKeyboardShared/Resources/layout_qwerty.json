@@ -63,14 +63,6 @@
         { "kind": "space", "units": 6 },
         { "kind": "languageToggle", "units": 1.5 }
       ]
-    },
-    {
-      "x": 247.5,
-      "y": 132,
-      "keys": [
-        { "kind": "cursorLeft" },
-        { "kind": "cursorRight" }
-      ]
     }
   ]
 }

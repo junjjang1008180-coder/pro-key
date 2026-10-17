@@ -71,7 +71,7 @@ struct KeyInputResolverTests {
         for id in ["shift", "shiftRight", "capsLock", "languageToggle"] {
             #expect(r.resolve(Self.key(id)) == nil, "\(id)")
         }
-        for kind in [KeyKind.space, .enter, .backspace, .tab, .cursorLeft, .cursorRight] {
+        for kind in [KeyKind.space, .enter, .backspace, .tab] {
             #expect(r.resolve(Self.key(kind.rawValue)) == KeyInputResolver.Output(kind: kind))
         }
     }
