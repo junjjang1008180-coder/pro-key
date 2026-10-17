@@ -89,6 +89,18 @@ public struct PaperMapping: Equatable, Sendable {
         return mapped.count == 4 ? mapped : nil
     }
 
+    /// 화면에서 종이가 똑바로(종이 위쪽이 화면 위쪽) 보이려면 영상을 시계 방향으로 몇 도 돌려야 하는지.
+    /// 0, 90, 180, 270 중 가장 가까운 값. 웹캠이 사용자 맞은편에 있으면 종이가 거꾸로 찍히므로 180이 나온다.
+    /// 버퍼는 y가 아래로 커지므로, 시계 방향 θ 회전은 (x, y) → (x·cosθ − y·sinθ, x·sinθ + y·cosθ).
+    public func uprightRotationDegrees(paperWidth: Double, paperHeight: Double) -> Double? {
+        guard let top = pixel(fromPaper: PaperPoint(x: paperWidth / 2, y: 0)),
+              let bottom = pixel(fromPaper: PaperPoint(x: paperWidth / 2, y: paperHeight)) else { return nil }
+        // 버퍼에서 종이 "위쪽" 방향의 각도. 화면 위쪽은 -90°.
+        let up = atan2(top.y - bottom.y, top.x - bottom.x) * 180 / .pi
+        let snapped = ((-90 - up) / 90).rounded() * 90
+        return (snapped.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+    }
+
     /// Vision 손끝 좌표를 바로 종이 좌표로. `imageSize`는 Vision에 넘긴 방향 기준 이미지 크기.
     public func paper(fromVision point: NormalizedPoint, imageSize: PixelSize) -> PaperPoint? {
         paper(fromPixel: CoordinateMapper.pixel(fromVision: point, imageSize: imageSize))

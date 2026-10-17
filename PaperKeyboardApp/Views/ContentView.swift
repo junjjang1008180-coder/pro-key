@@ -13,7 +13,8 @@ struct ContentView: View {
                     session: camera.session,
                     device: camera.currentDevice,
                     snapshot: model.snapshot,
-                    layout: model.layout
+                    layout: model.layout,
+                    paperRotation: model.paperRotation
                 )
                 statusBanner
                     .padding(12)

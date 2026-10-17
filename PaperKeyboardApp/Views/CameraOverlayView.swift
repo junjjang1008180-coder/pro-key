@@ -6,11 +6,14 @@ import SwiftUI
 /// 카메라 프리뷰 + 인식 결과 겹쳐 그리기.
 /// 인식 좌표(원본 버퍼 픽셀)를 화면 좌표로 바꿀 때는 프리뷰 레이어의 변환을 쓴다.
 /// 그래서 프리뷰가 화면에서 좌우 반전되거나 회전돼도 겹쳐 그린 선이 영상과 같이 따라간다.
+/// 화면은 좌우 반전하지 않고(인쇄된 글자가 바로 읽히게), 종이를 고정하면 종이가 똑바로 보이도록 돌린다.
 struct CameraOverlayView: UIViewRepresentable {
     let session: AVCaptureSession
     let device: AVCaptureDevice?
     let snapshot: PaperKeyboardDetector.Snapshot
     let layout: KeyboardLayout
+    /// nil이면 기기 방향 기준(수평)으로, 값이 있으면 그 각도로 프리뷰를 돌린다.
+    let paperRotation: Double?
 
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
@@ -22,6 +25,7 @@ struct CameraOverlayView: UIViewRepresentable {
 
     func updateUIView(_ view: PreviewView, context: Context) {
         view.attach(device: device)
+        view.paperRotation = paperRotation.map { CGFloat($0) }
         view.overlay.update(snapshot: snapshot, layout: layout)
     }
 }
@@ -33,6 +37,9 @@ final class PreviewView: UIView {
 
     private var rotationCoordinator: AVCaptureDevice.RotationCoordinator?
     private var rotationObservation: NSKeyValueObservation?
+    var paperRotation: CGFloat? {
+        didSet { if paperRotation != oldValue { applyCurrentRotation() } }
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -47,7 +54,7 @@ final class PreviewView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         overlay.frame = bounds
-        if let rotationCoordinator { applyRotation(rotationCoordinator.videoRotationAngleForHorizonLevelPreview) }
+        applyCurrentRotation()
         overlay.setNeedsDisplay()
     }
 
@@ -56,15 +63,22 @@ final class PreviewView: UIView {
         guard let device, rotationCoordinator?.device != device else { return }
         let coordinator = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: previewLayer)
         rotationCoordinator = coordinator
-        applyRotation(coordinator.videoRotationAngleForHorizonLevelPreview)
-        rotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] coordinator, _ in
-            DispatchQueue.main.async { self?.applyRotation(coordinator.videoRotationAngleForHorizonLevelPreview) }
+        applyCurrentRotation()
+        rotationObservation = coordinator.observe(\.videoRotationAngleForHorizonLevelPreview, options: [.new]) { [weak self] _, _ in
+            DispatchQueue.main.async { self?.applyCurrentRotation() }
         }
     }
 
-    private func applyRotation(_ angle: CGFloat) {
-        guard let connection = previewLayer.connection, connection.isVideoRotationAngleSupported(angle) else { return }
-        connection.videoRotationAngle = angle
+    /// 종이를 고정했으면 종이 기준 각도, 아니면 기기 방향 기준 각도로 돌린다.
+    private func applyCurrentRotation() {
+        guard let connection = previewLayer.connection else { return }
+        // 웹캠·전면 카메라 프리뷰는 기본으로 거울처럼 좌우 반전되는데, 그러면 인쇄된 글자가 뒤집혀 보인다.
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = false
+        }
+        let angle = paperRotation ?? rotationCoordinator?.videoRotationAngleForHorizonLevelPreview ?? 0
+        if connection.isVideoRotationAngleSupported(angle) { connection.videoRotationAngle = angle }
         overlay.setNeedsDisplay()
     }
 }

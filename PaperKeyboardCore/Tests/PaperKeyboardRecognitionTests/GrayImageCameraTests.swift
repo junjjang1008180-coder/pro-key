@@ -51,4 +51,23 @@ struct GrayImageCameraTests {
             #expect(abs(corner.x - x) < 1e-9 && abs(corner.y - y) < 1e-9)
         }
     }
+
+    @Test(arguments: [
+        // 종이 네 모서리(왼쪽 위, 오른쪽 위, 오른쪽 아래, 왼쪽 아래)가 버퍼에 찍힌 위치 → 돌려야 할 각도
+        ([(100.0, 100.0), (397.0, 100.0), (397.0, 310.0), (100.0, 310.0)], 0.0),    // 똑바로
+        ([(397.0, 310.0), (100.0, 310.0), (100.0, 100.0), (397.0, 100.0)], 180.0),  // 맞은편 웹캠: 거꾸로
+        ([(310.0, 100.0), (310.0, 397.0), (100.0, 397.0), (100.0, 100.0)], 270.0),  // 종이 위쪽이 버퍼 오른쪽
+        ([(100.0, 397.0), (100.0, 100.0), (310.0, 100.0), (310.0, 397.0)], 90.0),   // 종이 위쪽이 버퍼 왼쪽
+        ([(110.0, 90.0), (400.0, 120.0), (390.0, 320.0), (95.0, 300.0)], 0.0),      // 조금 기울어도 가까운 쪽
+    ])
+    func 종이가_똑바로_보이도록_돌릴_각도(corners: [(Double, Double)], expected: Double) throws {
+        let paper = CornerQuad(
+            topLeft: PaperPoint(x: 0, y: 0), topRight: PaperPoint(x: 297, y: 0),
+            bottomRight: PaperPoint(x: 297, y: 210), bottomLeft: PaperPoint(x: 0, y: 210)
+        )
+        let p = corners.map { PixelPoint(x: $0.0, y: $0.1) }
+        let pixels = CornerQuad(topLeft: p[0], topRight: p[1], bottomRight: p[2], bottomLeft: p[3])
+        let mapping = try #require(PaperMapping(markerPixels: pixels, markerPaper: paper))
+        #expect(mapping.uprightRotationDegrees(paperWidth: 297, paperHeight: 210) == expected)
+    }
 }
