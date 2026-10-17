@@ -19,24 +19,29 @@ final class KeyboardViewController: UIInputViewController {
         globeButton.setImage(UIImage(systemName: "globe"), for: .normal)
         globeButton.addTarget(self, action: #selector(handleInputModeList(from:with:)), for: .allTouchEvents)
 
-        let buttons = UIStackView(arrangedSubviews: [
+        // iPhone처럼 폭이 좁아도 글자가 잘리지 않게 버튼을 두 줄로 놓는다.
+        let topRow = UIStackView(arrangedSubviews: [
             globeButton,
             makeButton("앱 글 넣기", #selector(insertAppMessage)),
             makeButton("키보드→앱 쓰기", #selector(writeToApp)),
+        ])
+        let bottomRow = UIStackView(arrangedSubviews: [
             makeButton("스페이스", #selector(insertSpace)),
             makeButton("⌫", #selector(deleteBackward)),
         ])
-        buttons.axis = .horizontal
-        buttons.spacing = 8
-        buttons.distribution = .fillProportionally
+        for row in [topRow, bottomRow] {
+            row.axis = .horizontal
+            row.spacing = 8
+            row.distribution = .fillProportionally
+        }
 
-        let stack = UIStackView(arrangedSubviews: [statusLabel, buttons])
+        let stack = UIStackView(arrangedSubviews: [statusLabel, topRow, bottomRow])
         stack.axis = .vertical
         stack.spacing = 12
         stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(stack)
 
-        let height = view.heightAnchor.constraint(equalToConstant: 220)
+        let height = view.heightAnchor.constraint(equalToConstant: 260)
         height.priority = .defaultHigh
         NSLayoutConstraint.activate([
             height,
