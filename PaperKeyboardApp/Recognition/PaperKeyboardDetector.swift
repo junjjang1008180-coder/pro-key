@@ -137,6 +137,11 @@ final class PaperKeyboardDetector {
         if let observation {
             if let key = press.process(observation) { onKeyPress?(key) }
             last.press = press.diagnostics
+            // 닿는 중이면 공중의 (밀려 보이는) 손끝 아래가 아니라 실제로 닿은 키를 보여 준다.
+            switch press.state {
+            case .touching(let id?), .resting(let id?): last.hoveredKeyID = id
+            default: break
+            }
         } else {
             press.reset()
             last.press = nil

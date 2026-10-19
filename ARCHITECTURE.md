@@ -47,24 +47,26 @@
 - 종이 좌표: 원점은 종이 왼쪽 위, x 오른쪽, y 아래, 단위 mm. 레이아웃 JSON도 같은 좌표계다.
 
 ## 4. 누름 판정 상태 머신 (`PressDetector`)
-카메라 하나로는 "닿음"과 "올려 둠"이 같아 보이므로 **닿았다가 곧 손을 들어야 입력**한다 (탭). 2026-10-18 실기기에서 "멈추면 입력" 방식이 올려만 둬도 입력되고 같은 글자 연타(l → l)가 안 돼서 바꿨다.
+비스듬한 카메라 하나로 손끝을 보면, 손끝을 **내리면** 종이 좌표가 "들어 올림 방향"의 반대로, **들면** 그 방향으로 움직인다. 그래서 톡 치기는 "빠르게 내려왔다가 다시 올라감"으로 보이고, **가장 낮은 곳이 실제로 닿은 자리**다. 공중에 뜬 손끝은 종이 좌표로 실제보다 사용자 쪽(한 줄 아래 정도)에 찍힌다.
 ```
-IDLE     ──손끝이 키 안쪽 영역 진입──► HOVER(key)
-HOVER    ──같은 키 위에서 멈춘 채 dwell 시간 유지──► TOUCHING(key)   (아직 입력 안 함)
-HOVER    ──다른 키로 이동──► HOVER(newKey)
-TOUCHING ──들림(위로 liftDistance / 키 이탈 / 손 사라짐), 닿은 지 maxTapDuration 이내──► 입력 1회 → IDLE
-TOUCHING ──maxTapDuration 넘게 머묾──► RESTING(key)   (올려 둠: 입력 없음)
-RESTING  ──들림──► IDLE (입력 없음)
+TRACKING ──최근 descentWindow초의 가장 높은 곳보다 descentDistance 내려옴──► TOUCHING(가장 낮은 곳)
+TOUCHING ──더 내려감──► TOUCHING(새 가장 낮은 곳, 1mm 넘게 내려가면 닿은 시각도 갱신)
+TOUCHING ──가장 낮은 곳보다 liftDistance 올라감, 닿은 지 maxTapDuration 이내──► 입력 1회 → TRACKING
+TOUCHING ──손 사라짐, 닿은 지 maxTapDuration 이내──► 입력 1회 → IDLE
+TOUCHING ──maxTapDuration 넘게 머묾──► RESTING (올려 둠: 입력 없음)
+RESTING  ──다시 descentDistance 더 내려감──► TOUCHING
+RESTING  ──liftDistance 올라감──► TRACKING (입력 없음)
 ```
-- **들림 판정**: 비스듬한 카메라에서는 손끝을 들면 영상에서 실제 위쪽으로 움직인다. 앱이 그 방향을 종이 좌표로 바꿔(`PaperMapping.paperDirection`, 영상의 실제 위쪽은 RotationCoordinator의 수평 각도로 구함) `Observation.liftDirection`으로 넘긴다. 닿은 동안 그 방향으로 **가장 낮았던 위치**를 기준으로 `liftDistance`(4mm) 넘게 올라가면 든 것으로 본다. 공중에서 잠깐 멈췄다 내려와도 기준이 내려가므로 한 번만 입력된다. 방향을 모르면 `releaseDistance`(8mm, 방향 무관)를 쓴다.
-- 입력은 손을 드는 순간 나가므로 닿는 순간보다 약간(0.1~0.2초) 늦다.
-- 키 경계 떨림 방지: 진입은 안쪽 영역(`entryInset`), 이탈은 바깥 영역(`exitMargin`) 기준.
-- 손끝 좌표는 `FingertipSmoother`(지수 이동 평균)로 스무딩하고, 신뢰도가 `minConfidence` 미만인 프레임은 버리고 상태를 유지한다. 상태를 되돌리는 것은 "손 없음" 프레임뿐이고, 닿은 상태에서 손이 사라지면 들어 올린 것으로 본다.
-- 시간은 프레임이 찍힌 시각(presentation timestamp)을 쓴다. 유효 프레임 간격이 `maxSampleGap`을 넘으면 속도 계산만 새로 시작한다.
-- 모든 임계값은 `RecognitionSettings` 하나에 있고, 앱 설정 화면에서 dwell·maxTapDuration·liftDistance·minConfidence를 조절해 기기에 저장한다.
-- 판정에 쓰인 값(속도, 멈춘 시간, 닿은 시간, 들린 거리, 상태 전이)을 `Diagnostics`로 남기고 화면 아래에 표시한다.
+- 입력할 키는 가장 낮은 곳(닿은 자리)의 키. 키 사이 틈이면 `keySnapDistance`(1.5mm) 안의 가장 가까운 키, 그보다 멀면 입력 없음.
+- 같은 키를 다시 치려면 들었다가 다시 내려와야 하므로 쿨다운이 필요 없다. 올려만 두면 입력되지 않는다 (PRD 9절).
+- **들어 올림 방향**: 앱이 영상의 실제 위쪽(RotationCoordinator 수평 각도로 구함)을 종이 좌표로 바꿔(`PaperMapping.paperDirection`) `Observation.liftDirection`으로 넘긴다. 방향이 없으면 판정하지 않는다.
+- 변경 이력 (2026-10-18~19): ① "멈추면 입력" → 올려만 둬도 입력, 연타 안 됨. ② "멈췄다가 들면 입력" → 빠른 탭은 멈춤 0.12초를 못 채워 아예 안 됨 (실기기: "위에 있음"에서 안 바뀜). ③ 지금의 "내려왔다 올라감" 방식. 각 문제는 회귀 테스트로 남겼다.
+- 손끝 좌표는 `FingertipSmoother`(지수 이동 평균, 새 값 비중 0.7 — 오르내림이 깎이지 않게)로 스무딩하고, 신뢰도가 `minConfidence` 미만인 프레임은 버리고 상태를 유지한다. 상태를 되돌리는 것은 "손 없음" 프레임뿐이다.
+- 시간은 프레임이 찍힌 시각(presentation timestamp)을 쓴다. 유효 프레임 간격이 `maxSampleGap`을 넘으면 내려옴 측정을 새로 시작한다.
+- 임계값은 모두 `RecognitionSettings`에 있고, 앱 설정 화면에서 descentDistance·liftDistance·maxTapDuration·minConfidence를 조절해 기기에 저장한다.
+- 판정에 쓰인 값(내려온 거리, 닿은 시간, 들린 거리, 상태 전이)을 `Diagnostics`로 남기고 화면 아래에 표시한다.
 - v1은 **검지 하나**만 추적한다 (양손 중 신뢰도가 높은 손). 여러 손가락은 v2 이후.
-- **열린 문제 1 (올려 둠 vs 누름)**: 위 방식으로 대응. 0.6초보다 오래 누르는 사람은 `maxTapDuration`을 늘려야 하고, 닿은 채 옆 키로 미끄러지면 앞 키가 입력되는 한계가 있다. 실기기 결과로 계속 조정한다.
+- 알려진 한계: 공중에서 카메라 쪽으로 옮겼다가 되돌아오는 움직임도 "내려왔다 올라감"으로 보일 수 있다. 실기기 기록으로 계속 조정한다.
 
 ## 5. 마커 검출과 보정 고정 (`PaperKeyboardDetector`)
 - 네 마커가 모두 보이고, 연속 N프레임 동안 위치 변화가 작으면 호모그래피를 **고정(lock)** 한다.

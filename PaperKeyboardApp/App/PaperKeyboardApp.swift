@@ -145,14 +145,13 @@ final class AppModel: ObservableObject {
 enum SettingsStore {
     private static let defaults = UserDefaults.standard
     private static let keys = (
-        dwell: "settings.dwellDuration", stillSpeed: "settings.maxStillSpeed",
-        lift: "settings.liftDistance", maxTap: "settings.maxTapDuration", confidence: "settings.minConfidence"
+        descent: "settings.descentDistance", lift: "settings.liftDistance",
+        maxTap: "settings.maxTapDuration", confidence: "settings.minConfidence"
     )
 
     static func load() -> RecognitionSettings {
         var settings = RecognitionSettings()
-        if let value = defaults.object(forKey: keys.dwell) as? Double { settings.dwellDuration = value }
-        if let value = defaults.object(forKey: keys.stillSpeed) as? Double { settings.maxStillSpeed = value }
+        if let value = defaults.object(forKey: keys.descent) as? Double { settings.descentDistance = value }
         if let value = defaults.object(forKey: keys.lift) as? Double { settings.liftDistance = value }
         if let value = defaults.object(forKey: keys.maxTap) as? Double { settings.maxTapDuration = value }
         if let value = defaults.object(forKey: keys.confidence) as? Double { settings.minConfidence = value }
@@ -160,8 +159,7 @@ enum SettingsStore {
     }
 
     static func save(_ settings: RecognitionSettings) {
-        defaults.set(settings.dwellDuration, forKey: keys.dwell)
-        defaults.set(settings.maxStillSpeed, forKey: keys.stillSpeed)
+        defaults.set(settings.descentDistance, forKey: keys.descent)
         defaults.set(settings.liftDistance, forKey: keys.lift)
         defaults.set(settings.maxTapDuration, forKey: keys.maxTap)
         defaults.set(settings.minConfidence, forKey: keys.confidence)

@@ -159,15 +159,14 @@ struct ContentView: View {
         guard let press = model.snapshot.press else { return "누름 판정: 대기 (종이 고정 후 시작)" }
         let state: String
         switch press.state {
-        case .idle: state = "대기"
-        case .hover(let id): state = "\(id) 위에 있음"
-        case .touching(let id): state = "\(id) 닿음 (들면 입력)"
-        case .resting(let id): state = "\(id) 올려 둠 (입력 안 함)"
+        case .idle: state = "손 안 보임"
+        case .hover(let id): state = "\(id ?? "키 밖") 근처 (공중)"
+        case .touching(let id): state = "\(id ?? "키 밖") 닿음 (들면 입력)"
+        case .resting(let id): state = "\(id ?? "키 밖") 올려 둠 (입력 안 함)"
         }
-        let speed = press.speed.map { String(format: " · 속도 %.0fmm/s", $0) } ?? ""
-        let still = press.stillDuration.map { String(format: " · 멈춤 %.2f초", $0) } ?? ""
+        let descent = press.descent.map { String(format: " · 내려옴 %.1fmm", $0) } ?? ""
         let touch = press.touchDuration.map { String(format: " · 닿은 지 %.2f초", $0) } ?? ""
         let lift = press.liftAmount.map { String(format: " · 들림 %.1fmm", $0) } ?? ""
-        return "누름 판정: \(state)\(speed)\(still)\(touch)\(lift)"
+        return "누름 판정: \(state)\(descent)\(touch)\(lift)"
     }
 }

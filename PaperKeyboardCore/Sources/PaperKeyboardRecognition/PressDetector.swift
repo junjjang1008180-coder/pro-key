@@ -3,30 +3,33 @@ import PaperKeyboardShared
 
 /// 누름(탭) 판정 상태 머신. 누름 판정은 이곳에서만 한다.
 ///
-/// 카메라 하나로는 "닿음"과 "올려 둠"이 같아 보이므로, **닿았다가 곧 손을 들어야** 입력한다 (탭).
-/// 손끝을 키 위에 오래 올려 두면 입력하지 않는다 (PRD 9절: 올려만 두면 입력되지 않음).
+/// 비스듬한 카메라 하나로 손끝을 보면, 손끝을 **내리면** 종이 좌표가 "들어 올림 방향"의 반대로,
+/// **들면** 그 방향으로 움직인다. 그래서 톡 치기는 "빠르게 내려왔다가 다시 올라감"으로 보이고,
+/// 가장 낮은 곳이 실제로 닿은 자리다 (공중에 뜬 손끝은 종이 좌표로 실제보다 사용자 쪽에 찍힌다).
 ///
 /// ```
-/// IDLE     ── 손끝이 키 안쪽 영역에 진입 ──────────────────► HOVER(key)
-/// HOVER    ── 같은 키 위에서 멈춘 채 dwell 시간 유지 ─────► TOUCHING(key)   (아직 입력 안 함)
-/// HOVER    ── 키 바깥 영역 이탈 ───────────────────────────► IDLE (다른 키 안쪽이면 바로 HOVER)
-/// TOUCHING ── 들림(위로 liftDistance / 키 이탈 / 손 사라짐),
-///             닿은 지 maxTapDuration 이내 ────────────────► 입력 1회 → IDLE
-/// TOUCHING ── maxTapDuration 넘게 머묾 ────────────────────► RESTING(key)   (올려 둠: 입력 없음)
-/// RESTING  ── 들림 ────────────────────────────────────────► IDLE (입력 없음)
+/// TRACKING ── 최근 descentWindow초의 가장 높은 곳보다 descentDistance 내려옴 ──► TOUCHING(가장 낮은 곳)
+/// TOUCHING ── 더 내려감 ───────────────────────────────────────────────────────► TOUCHING(새 가장 낮은 곳, 시각 갱신)
+/// TOUCHING ── 가장 낮은 곳보다 liftDistance 올라감, 닿은 지 maxTapDuration 이내 ──► 입력 1회 → TRACKING
+/// TOUCHING ── 손 사라짐, 닿은 지 maxTapDuration 이내 ─────────────────────────────► 입력 1회 → IDLE
+/// TOUCHING ── maxTapDuration 넘게 머묾 ─────────────────────────────────────────► RESTING (올려 둠: 입력 없음)
+/// RESTING  ── 다시 descentDistance 더 내려감 ─────────────────────────────────────► TOUCHING
+/// RESTING  ── liftDistance 올라감 ───────────────────────────────────────────────► TRACKING (입력 없음)
 /// ```
 ///
-/// 들림 판정: 비스듬한 카메라에서는 손끝을 들면 영상에서 위로 움직이고, 종이 좌표로는
-/// "들어 올림 방향"(`Observation.liftDirection`)으로 움직인다. 닿은 동안 그 방향으로 가장 낮았던
-/// 위치를 기준으로 `liftDistance` 넘게 올라가면 든 것으로 본다. 방향을 모르면 `releaseDistance`를 쓴다.
+/// 입력할 키는 가장 낮은 곳(닿은 자리)의 키다. 키 사이 틈이면 `keySnapDistance` 안의 가장 가까운 키.
+/// 같은 키를 다시 치려면 손을 들었다가 다시 내려와야 하므로 쿨다운이 필요 없다.
+/// 들어 올림 방향을 모르면 판정하지 않는다 (앱은 종이 변환이 있으면 항상 방향을 넘긴다).
 public struct PressDetector: Sendable {
     public enum State: Equatable, Sendable {
+        /// 손이 안 보임.
         case idle
-        case hover(keyID: String)
-        /// 닿음: 이 상태에서 손을 들면 입력된다.
-        case touching(keyID: String)
+        /// 손끝이 보이고 내려오는 중이 아님. 키는 손끝 아래 키 (공중이면 실제보다 사용자 쪽).
+        case hover(keyID: String?)
+        /// 내려와 닿는 중: 이 상태에서 손을 들면 가장 낮은 곳의 키가 입력된다.
+        case touching(keyID: String?)
         /// 오래 올려 둠: 손을 들어도 입력하지 않는다.
-        case resting(keyID: String)
+        case resting(keyID: String?)
     }
 
     /// 프레임 하나의 손끝 관측값. 좌표는 이미 종이 mm로 변환·스무딩된 값.
@@ -60,11 +63,11 @@ public struct PressDetector: Sendable {
         public var state: State
         /// mm/s. 직전 유효 프레임이 없으면 nil.
         public var speed: Double?
-        /// HOVER에서 멈춘 채 지난 시간 (초).
-        public var stillDuration: Double?
-        /// TOUCHING에서 닿은 뒤 지난 시간 (초).
+        /// TRACKING: 최근 가장 높은 곳보다 내려온 거리 (mm).
+        public var descent: Double?
+        /// TOUCHING/RESTING: 가장 낮은 곳에 닿은 뒤 지난 시간 (초).
         public var touchDuration: Double?
-        /// TOUCHING/RESTING에서 가장 낮았던 위치보다 들어 올림 방향으로 올라간 거리 (mm).
+        /// TOUCHING/RESTING: 가장 낮은 곳보다 올라간 거리 (mm).
         public var liftAmount: Double?
         public var confidence: Double
         /// 이번 프레임에 상태가 바뀌었다면 그 이유들.
@@ -75,20 +78,29 @@ public struct PressDetector: Sendable {
     public var settings: RecognitionSettings
     public private(set) var diagnostics: Diagnostics?
 
-    /// 닿은 동안의 기준: 처음 멈춘 시각, 들어 올림 방향으로 가장 낮았던 위치.
-    private struct Contact: Sendable {
+    /// 가장 낮은 곳 (닿은 자리)과 거기 닿은 시각.
+    private struct Bottom: Sendable {
+        var point: PaperPoint
+        var height: Double
         var since: Double
-        var lowest: PaperPoint
+    }
+
+    private struct Sample: Sendable {
+        var time: Double
+        var height: Double
     }
 
     private enum Phase: Sendable {
         case idle
-        case hover(KeyboardLayout.Key, stillSince: Double?)
-        case touching(KeyboardLayout.Key, Contact)
-        case resting(KeyboardLayout.Key, Contact)
+        case tracking
+        case touching(Bottom)
+        case resting(Bottom)
     }
 
     private var phase: Phase = .idle
+    private var lastPoint: PaperPoint?
+    /// 내려옴을 재기 위한 최근 높이 기록 (descentWindow 초).
+    private var recent: [Sample] = []
     private var lastSample: (time: Double, point: PaperPoint)?
 
     public init(layout: KeyboardLayout, settings: RecognitionSettings) {
@@ -99,15 +111,17 @@ public struct PressDetector: Sendable {
     public var state: State {
         switch phase {
         case .idle: .idle
-        case .hover(let key, _): .hover(keyID: key.id)
-        case .touching(let key, _): .touching(keyID: key.id)
-        case .resting(let key, _): .resting(keyID: key.id)
+        case .tracking: .hover(keyID: lastPoint.flatMap { layout.key(at: $0)?.id })
+        case .touching(let bottom): .touching(keyID: key(at: bottom.point)?.id)
+        case .resting(let bottom): .resting(keyID: key(at: bottom.point)?.id)
         }
     }
 
     /// 처음 상태로. 재보정하거나 종이 변환이 없어졌을 때 부른다.
     public mutating func reset() {
         phase = .idle
+        lastPoint = nil
+        recent = []
         lastSample = nil
         diagnostics = nil
     }
@@ -117,45 +131,47 @@ public struct PressDetector: Sendable {
         var transitions: [String] = []
         var speed: Double?
         var typedKey: KeyboardLayout.Key?
+        var descent: Double?
         var liftAmount: Double?
 
         if let point = observation.fingertip {
-            if let last = lastSample, observation.time - last.time > settings.maxSampleGap {
-                lastSample = nil
-            }
-            // 신뢰도 낮은 프레임은 버린다. 손이 사라진 것과 구분해 상태는 그대로 둔다.
-            if observation.confidence >= settings.minConfidence {
-                if let last = lastSample {
+            // 신뢰도 낮은 프레임과 방향을 모르는 프레임은 버린다. 손이 사라진 것과 구분해 상태는 그대로 둔다.
+            if observation.confidence >= settings.minConfidence, let lift = observation.liftDirection {
+                if let last = lastSample, observation.time - last.time <= settings.maxSampleGap {
                     speed = point.distance(to: last.point) / max(observation.time - last.time, 1e-3)
+                } else {
+                    recent = []   // 오래 끊겼으면 내려옴도 새로 잰다
                 }
                 lastSample = (observation.time, point)
-                typedKey = advance(to: point, at: observation.time, speed: speed, lift: observation.liftDirection,
-                                   liftAmount: &liftAmount, transitions: &transitions)
+                lastPoint = point
+                typedKey = advance(to: point, height: Self.height(point, along: lift), at: observation.time,
+                                   descent: &descent, liftAmount: &liftAmount, transitions: &transitions)
             }
         } else {
             // 손이 사라짐 = 들어 올림으로 본다 (빠른 탭에서 인식이 끊기는 경우 포함).
-            if case .touching(let key, let contact) = phase, observation.time - contact.since <= settings.maxTapDuration {
+            if case .touching(let bottom) = phase, observation.time - bottom.since <= settings.maxTapDuration,
+               let key = key(at: bottom.point) {
                 transitions.append("입력 (\(key.id), 손 사라짐)")
                 typedKey = key
             } else if state != .idle {
                 transitions.append("손 사라짐")
             }
             phase = .idle
+            lastPoint = nil
+            recent = []
             lastSample = nil
         }
 
-        var stillDuration: Double?
         var touchDuration: Double?
         switch phase {
-        case .hover(_, let since?): stillDuration = observation.time - since
-        case .touching(_, let contact): touchDuration = observation.time - contact.since
+        case .touching(let bottom), .resting(let bottom): touchDuration = observation.time - bottom.since
         default: break
         }
         diagnostics = Diagnostics(
             time: observation.time,
             state: state,
             speed: speed,
-            stillDuration: stillDuration,
+            descent: descent,
             touchDuration: touchDuration,
             liftAmount: liftAmount,
             confidence: observation.confidence,
@@ -166,103 +182,99 @@ public struct PressDetector: Sendable {
 
     private mutating func advance(
         to point: PaperPoint,
+        height: Double,
         at time: Double,
-        speed: Double?,
-        lift: PaperPoint?,
+        descent: inout Double?,
         liftAmount: inout Double?,
         transitions: inout [String]
     ) -> KeyboardLayout.Key? {
+        recent.append(Sample(time: time, height: height))
+        recent.removeAll { time - $0.time > settings.descentWindow }
+
         switch phase {
-        case .touching(let key, var contact):
-            contact.lowest = Self.lower(contact.lowest, point, along: lift)
-            liftAmount = lift.map { Self.height(of: point, above: contact.lowest, along: $0) }
-            if let reason = release(from: key, contact: contact, to: point, lift: lift) {
-                let duration = time - contact.since
-                phase = .idle
-                enterKeyIfInside(point, transitions: &transitions)
-                guard duration <= settings.maxTapDuration else { return nil }
-                transitions.insert("입력 (\(key.id), \(reason), \(Self.format(duration))초 닿음)", at: 0)
+        case .idle, .tracking:
+            let peak = recent.map(\.height).max() ?? height
+            descent = peak - height
+            if peak - height >= settings.descentDistance {
+                phase = .touching(Bottom(point: point, height: height, since: time))
+                transitions.append("내려옴 (\(key(at: point)?.id ?? "키 밖"))")
+            } else {
+                phase = .tracking
+            }
+            return nil
+
+        case .touching(var bottom):
+            Self.lower(&bottom, to: point, height: height, at: time)
+            liftAmount = height - bottom.height
+            if height - bottom.height >= settings.liftDistance {
+                let duration = time - bottom.since
+                restartTracking(at: time, height: height)
+                guard let key = key(at: bottom.point) else {
+                    transitions.append("키 밖에서 톡 (입력 없음)")
+                    return nil
+                }
+                transitions.append("입력 (\(key.id), \(Self.format(height - bottom.height))mm 들어 올림, \(Self.format(duration))초 닿음)")
                 return key
             }
-            if time - contact.since > settings.maxTapDuration {
-                transitions.append("올려 둠 (\(key.id)) · 입력 안 함")
-                phase = .resting(key, contact)
+            if time - bottom.since > settings.maxTapDuration {
+                transitions.append("올려 둠 (\(key(at: bottom.point)?.id ?? "키 밖")) · 입력 안 함")
+                phase = .resting(bottom)
             } else {
-                phase = .touching(key, contact)
+                phase = .touching(bottom)
             }
             return nil
 
-        case .resting(let key, var contact):
-            contact.lowest = Self.lower(contact.lowest, point, along: lift)
-            liftAmount = lift.map { Self.height(of: point, above: contact.lowest, along: $0) }
-            if let reason = release(from: key, contact: contact, to: point, lift: lift) {
-                transitions.append("\(reason) (올려 둔 뒤라 입력 없음)")
-                phase = .idle
-                enterKeyIfInside(point, transitions: &transitions)
-            } else {
-                phase = .resting(key, contact)
-            }
-            return nil
-
-        case .hover(let key, let stillSince):
-            guard outerFrame(of: key).contains(point) else {
-                transitions.append("키 이탈 (\(key.id))")
-                phase = .idle
-                enterKeyIfInside(point, transitions: &transitions)
+        case .resting(var bottom):
+            if bottom.height - height >= settings.descentDistance {
+                phase = .touching(Bottom(point: point, height: height, since: time))
+                transitions.append("다시 내려옴 (\(key(at: point)?.id ?? "키 밖"))")
                 return nil
             }
-            guard let speed, speed <= settings.maxStillSpeed else {
-                phase = .hover(key, stillSince: nil)
-                return nil
-            }
-            let since = stillSince ?? time
-            if time - since >= settings.dwellDuration {
-                transitions.append("닿음 (\(key.id))")
-                phase = .touching(key, Contact(since: since, lowest: point))
+            if height < bottom.height { (bottom.point, bottom.height) = (point, height) }
+            liftAmount = height - bottom.height
+            if height - bottom.height >= settings.liftDistance {
+                transitions.append("들어 올림 (올려 둔 뒤라 입력 없음)")
+                restartTracking(at: time, height: height)
             } else {
-                phase = .hover(key, stillSince: since)
+                phase = .resting(bottom)
             }
-            return nil
-
-        case .idle:
-            enterKeyIfInside(point, transitions: &transitions)
             return nil
         }
     }
 
-    /// 손을 들었는지. 들었다면 이유.
-    private func release(from key: KeyboardLayout.Key, contact: Contact, to point: PaperPoint, lift: PaperPoint?) -> String? {
-        if !outerFrame(of: key).contains(point) { return "키 이탈" }
-        if let lift {
-            let height = Self.height(of: point, above: contact.lowest, along: lift)
-            if height > settings.liftDistance { return "들어 올림 \(Self.format(height))mm" }
-            return nil
-        }
-        let distance = point.distance(to: contact.lowest)
-        return distance > settings.releaseDistance ? "닿은 곳에서 \(Self.format(distance))mm 이동" : nil
+    /// 손을 든 뒤: 다음 내려옴은 지금 높이부터 잰다.
+    private mutating func restartTracking(at time: Double, height: Double) {
+        phase = .tracking
+        recent = [Sample(time: time, height: height)]
     }
 
-    /// 진입은 안쪽 영역 기준 (경계 떨림 방지).
-    private mutating func enterKeyIfInside(_ point: PaperPoint, transitions: inout [String]) {
-        guard let key = layout.key(at: point, inset: settings.entryInset) else { return }
-        transitions.append("키 진입 (\(key.id))")
-        phase = .hover(key, stillSince: nil)
+    /// 닿은 자리의 키. 키 사이 틈이면 `keySnapDistance` 안의 가장 가까운 키.
+    private func key(at point: PaperPoint) -> KeyboardLayout.Key? {
+        if let key = layout.key(at: point) { return key }
+        return layout.keys
+            .map { (key: $0, distance: Self.distance(from: point, to: $0.frame)) }
+            .filter { $0.distance <= settings.keySnapDistance }
+            .min { $0.distance < $1.distance }?.key
     }
 
-    /// 이탈은 바깥 영역 기준.
-    private func outerFrame(of key: KeyboardLayout.Key) -> PaperRect {
-        key.frame.insetBy(-settings.exitMargin)
+    /// 더 낮은 곳으로 내려갔으면 가장 낮은 곳을 옮긴다. 1mm 넘게 더 내려가면 닿은 시각도 새로 잰다
+    /// (공중에서 잠깐 멈췄다가 마저 내려와 닿는 경우).
+    private static func lower(_ bottom: inout Bottom, to point: PaperPoint, height: Double, at time: Double) {
+        guard height < bottom.height else { return }
+        if bottom.height - height > 1 { bottom.since = time }
+        bottom.point = point
+        bottom.height = height
     }
 
-    /// 들어 올림 방향으로 `base`보다 얼마나 높은지 (mm).
-    private static func height(of point: PaperPoint, above base: PaperPoint, along lift: PaperPoint) -> Double {
-        (point.x - base.x) * lift.x + (point.y - base.y) * lift.y
+    /// 들어 올림 방향으로 잰 높이 (mm, 기준점은 의미 없음 — 차이만 쓴다).
+    private static func height(_ point: PaperPoint, along lift: PaperPoint) -> Double {
+        point.x * lift.x + point.y * lift.y
     }
 
-    /// 들어 올림 방향으로 더 낮은 쪽. 방향을 모르면 처음 위치를 그대로 둔다.
-    private static func lower(_ a: PaperPoint, _ b: PaperPoint, along lift: PaperPoint?) -> PaperPoint {
-        guard let lift else { return a }
-        return height(of: b, above: a, along: lift) < 0 ? b : a
+    private static func distance(from point: PaperPoint, to rect: PaperRect) -> Double {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return hypot(dx, dy)
     }
 
     private static func format(_ value: Double) -> String {

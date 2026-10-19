@@ -6,25 +6,25 @@ public struct RecognitionSettings: Equatable, Sendable {
     /// 이보다 신뢰도가 낮은 손끝 프레임은 버린다 (손이 사라진 것으로 보지 않음).
     public var minConfidence: Double = 0.5
     /// 손끝 스무딩(지수 이동 평균)에서 새 값의 비중. 1이면 스무딩 없음.
-    public var smoothingFactor: Double = 0.5
+    /// 톡 치는 동작의 오르내림이 너무 깎이지 않도록 새 값 비중을 높게 둔다.
+    public var smoothingFactor: Double = 0.7
     /// 유효 프레임 간격이 이보다 길면 스무딩과 속도 계산을 새로 시작한다 (초).
     public var maxSampleGap: Double = 0.25
 
-    /// 이 속도 이하이면 "멈춤"으로 본다 (mm/s).
-    public var maxStillSpeed: Double = 50
-    /// 같은 키 위에서 멈춘 채 이만큼 지나면 "닿음"으로 본다 (초). 입력은 그 뒤 손을 들 때 한다.
-    public var dwellDuration: Double = 0.12
-    /// 키 진입은 키 영역을 이만큼 안쪽으로 줄여서 판정한다 (mm).
-    public var entryInset: Double = 1.5
-    /// 키 이탈은 키 영역을 이만큼 바깥으로 넓혀서 판정한다 (mm).
-    public var exitMargin: Double = 2
-    /// 닿은 위치에서 (방향과 관계없이) 이보다 멀어지면 손을 든 것으로 본다 (mm). 들어 올림 방향을 모를 때의 기준.
-    public var releaseDistance: Double = 8
-    /// 닿은 가장 낮은 위치에서 "들어 올림 방향"으로 이만큼 움직이면 손을 든 것으로 본다 (mm).
-    /// 비스듬한 카메라에서는 손끝을 조금만 들어도 영상에서 위로 움직이므로 작게 잡는다.
+    // MARK: 누름(탭) 판정 (PressDetector)
+    // 비스듬한 카메라에서 손끝을 내리면 종이 좌표가 "들어 올림 방향"의 반대로, 들면 그 방향으로 움직인다.
+    // 거리는 모두 그 방향으로 잰 값 (mm).
+
+    /// 최근 `descentWindow`초 안의 가장 높은 곳보다 이만큼 내려오면 "내려와 닿는 중"으로 본다.
+    public var descentDistance: Double = 4
+    /// 내려옴을 잴 때 돌아보는 시간 (초). 천천히 내려오는 것은 톡 치기로 보지 않는다.
+    public var descentWindow: Double = 0.5
+    /// 내려온 가장 낮은 곳에서 이만큼 다시 올라가면 손을 든 것으로 보고 입력한다.
     public var liftDistance: Double = 4
-    /// 닿은 뒤 이 시간 안에 들어야 입력한다 (초). 더 오래 머물면 "올려 둔 것"으로 보고 입력하지 않는다.
+    /// 가장 낮은 곳에 닿은 뒤 이 시간 안에 들어야 입력한다 (초). 더 오래 머물면 "올려 둔 것"으로 보고 입력하지 않는다.
     public var maxTapDuration: Double = 0.6
+    /// 닿은 곳이 키 사이 틈이면 이 거리 안의 가장 가까운 키로 본다 (mm). 틈은 2mm이므로 반쯤이면 충분.
+    public var keySnapDistance: Double = 1.5
 
     // MARK: 마커 검출 (MarkerDetector)
 
